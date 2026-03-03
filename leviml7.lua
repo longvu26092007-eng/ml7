@@ -1,5 +1,5 @@
 -- [[ VU NGUYEN KAITUN LEVI - MULTI-SCRIPT SUPPORT ]]
--- Chức năng: AUTO TEAM (UI Click) -> WAIT 15S -> AUTO SEA 3 -> DETECT OWNER -> AUTO KICK
+-- Chức năng: AUTO TEAM -> AUTO BUY DRAGON TALON -> WAIT 15S -> AUTO SEA 3 -> DETECT OWNER -> AUTO KICK
 
 -- [[ CONFIG AREA ]]
 getgenv().Team = getgenv().Team or "Marines"
@@ -42,6 +42,7 @@ local success, services = pcall(function()
     return {
         UserInputService = game:GetService("UserInputService"),
         TweenService = game:GetService("TweenService"),
+        RunService = game:GetService("RunService"),
         CoreGui = game:GetService("CoreGui"),
         Players = game:GetService("Players"),
         ReplicatedStorage = game:GetService("ReplicatedStorage"),
@@ -54,10 +55,86 @@ if not success then return end
 local Player = services.Players.LocalPlayer
 local PlaceId = tostring(game.PlaceId)
 
--- ID CÁC SEA ĐỂ FIX LỖI CHUYỂN VÙNG
 local SEA_1 = {["2753915549"] = true, ["85211729168715"] = true}
 local SEA_2 = {["4442272183"] = true, ["79091703265657"] = true}
 local SEA_3 = {["7449423635"] = true, ["100117331123089"] = true}
+
+-- ==========================================
+-- [ DRAGON TALON - CHECK & BUY ]
+-- ==========================================
+local Uzoth_CFrame = CFrame.new(5661.898, 1210.877, 863.176)
+
+local function CheckDragonTalon()
+    local char = Player.Character
+    local bp = Player:FindFirstChild("Backpack")
+    return (char and char:FindFirstChild("Dragon Talon"))
+        or (bp and bp:FindFirstChild("Dragon Talon"))
+end
+
+local function TweenTo(targetCFrame)
+    local char = Player.Character or Player.CharacterAdded:Wait()
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
+
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    if distance <= 250 then
+        hrp.CFrame = targetCFrame
+        return true
+    end
+
+    local bv = hrp:FindFirstChild("LeviAntiGrav") or Instance.new("BodyVelocity")
+    bv.Name = "LeviAntiGrav"
+    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.Parent = hrp
+
+    local tweenObj = services.TweenService:Create(hrp, TweenInfo.new(distance / 300, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+
+    local noclip
+    noclip = services.RunService.Stepped:Connect(function()
+        if hum and hum.Parent then hum:ChangeState(11) end
+        if char and char.Parent then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+
+    tweenObj:Play()
+    tweenObj.Completed:Wait()
+
+    if bv and bv.Parent then bv:Destroy() end
+    if noclip then noclip:Disconnect() end
+
+    if hum and hum.Parent and hum.Health > 0 then
+        hum:ChangeState(8)
+        return true
+    end
+    return false
+end
+
+local function DoBuyDragonTalon()
+    pcall(function()
+        local check = services.CommF:InvokeServer("BuyDragonTalon", true)
+        if check == 3 then
+            services.CommF:InvokeServer("Bones", "Buy", 1, 1)
+            task.wait(0.3)
+            services.CommF:InvokeServer("BuyDragonTalon", true)
+        elseif check == 1 then
+            services.CommF:InvokeServer("BuyDragonTalon")
+        else
+            services.CommF:InvokeServer("Bones", "Buy", 1, 1)
+            task.wait(0.3)
+            services.CommF:InvokeServer("BuyDragonTalon", true)
+            task.wait(0.3)
+            services.CommF:InvokeServer("BuyDragonTalon")
+        end
+    end)
+end
 
 -- ==========================================
 -- MONITOR UI (RIGHT SIDE - GOLD/BLACK)
@@ -86,11 +163,63 @@ StatusLabel.BackgroundTransparency = 1
 StatusLabel.TextWrapped = true
 
 -- ==========================================
--- LOGIC TRÌNH TỰ: WAIT 15S -> SEA -> DETECT
+-- LOGIC: BUY DRAGON TALON → WAIT 15S → SEA → DETECT
 -- ==========================================
 task.spawn(function()
 
-    -- BƯỚC 1: ĐỢI 15 GIÂY TRƯỚC KHI CHECK SEA & TELEPORT
+    -- ========================================
+    -- BƯỚC 0: CHECK & MUA DRAGON TALON
+    -- ========================================
+    if CheckDragonTalon() then
+        StatusLabel.Text = "Dragon Talon: ✅ Đã có\nTiếp tục..."
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        warn("[Levi] Dragon Talon đã có, bỏ qua.")
+        task.wait(1)
+    else
+        -- Chưa có → bay đến mua
+        local maxRetry = 5
+        for attempt = 1, maxRetry do
+            if CheckDragonTalon() then break end
+
+            StatusLabel.Text = "Dragon Talon: ❌ Chưa có\nĐang bay đến NPC... (" .. attempt .. "/" .. maxRetry .. ")"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+            warn("[Levi] Chưa có Dragon Talon, bay đến NPC (lần " .. attempt .. ")")
+
+            local arrived = TweenTo(Uzoth_CFrame)
+            if arrived then
+                StatusLabel.Text = "Dragon Talon: Đang mua..."
+                task.wait(0.5)
+                DoBuyDragonTalon()
+                task.wait(1)
+
+                if CheckDragonTalon() then
+                    StatusLabel.Text = "Dragon Talon: ✅ Mua thành công!"
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    warn("[Levi] Mua Dragon Talon thành công!")
+                    task.wait(1)
+                    break
+                else
+                    StatusLabel.Text = "Dragon Talon: Mua thất bại, thử lại..."
+                    warn("[Levi] Mua thất bại, retry...")
+                end
+            else
+                StatusLabel.Text = "Dragon Talon: Bay thất bại, thử lại..."
+            end
+            task.wait(3)
+        end
+
+        -- Nếu sau max retry vẫn chưa có
+        if not CheckDragonTalon() then
+            StatusLabel.Text = "Dragon Talon: ⚠ Không mua được!\nTiếp tục script..."
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            warn("[Levi] Không mua được Dragon Talon sau " .. maxRetry .. " lần. Tiếp tục.")
+            task.wait(2)
+        end
+    end
+
+    -- ========================================
+    -- BƯỚC 1: ĐỢI 15 GIÂY TRƯỚC KHI CHECK SEA
+    -- ========================================
     for i = 15, 1, -1 do
         StatusLabel.Text = "Waiting before Sea check: " .. i .. "s"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
@@ -156,6 +285,54 @@ task.spawn(function()
                 task.wait(20)
                 StatusLabel.Text = "Loading bfchangeacc..."
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/skadidau/unfazedfree/refs/heads/main/bfchangeacc"))()
+
+                -- ========================================
+                -- CHECK LEVIATHAN HEART (CHỈ ACC KHÁCH)
+                -- ========================================
+                task.spawn(function()
+                    warn("[Levi] Bắt đầu check Leviathan Heart...")
+                    while task.wait(5) do
+                        local heartCount = 0
+                        pcall(function()
+                            local inv = services.CommF:InvokeServer("getInventory")
+                            if type(inv) == "table" then
+                                for _, item in ipairs(inv) do
+                                    if item.Name == "Leviathan Heart" then
+                                        heartCount = item.Count or 1
+                                        break
+                                    end
+                                end
+                            end
+                        end)
+
+                        -- Check trong Backpack + Character nữa
+                        if heartCount == 0 then
+                            pcall(function()
+                                local bp = Player:FindFirstChild("Backpack")
+                                local chr = Player.Character
+                                if (bp and bp:FindFirstChild("Leviathan Heart"))
+                                    or (chr and chr:FindFirstChild("Leviathan Heart")) then
+                                    heartCount = 1
+                                end
+                            end)
+                        end
+
+                        if heartCount >= 1 then
+                            StatusLabel.Text = "💎 Leviathan Heart: " .. heartCount .. " → Ghi file!"
+                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            warn("[Levi] Phát hiện Leviathan Heart x" .. heartCount .. "! Ghi file...")
+
+                            pcall(function()
+                                writefile(Player.Name .. ".txt", "Completed-heart")
+                            end)
+                            warn("[Levi] Đã ghi file: " .. Player.Name .. ".txt → Completed-heart")
+
+                            StatusLabel.Text = "✅ Completed-heart!\n📄 " .. Player.Name .. ".txt"
+                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            break
+                        end
+                    end
+                end)
             else
                 StatusLabel.Text = "No Owner detected. Auto Kicking..."
                 StatusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
@@ -163,7 +340,6 @@ task.spawn(function()
                 Player:Kick("Không tìm thấy chủ tàu sau 20s quét.")
             end
         else
-            -- LOGIC DÀNH CHO CHỦ TÀU: DELAY 2 PHÚT RỒI MỚI EXECUTE
             StatusLabel.Text = "Main Account Mode Active.\nWaiting 120s before execute..."
             StatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
             
