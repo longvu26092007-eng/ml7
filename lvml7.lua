@@ -282,10 +282,6 @@ task.spawn(function()
                 }
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
 
-                task.wait(20)
-                StatusLabel.Text = "Loading bfchangeacc..."
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/skadidau/unfazedfree/refs/heads/main/bfchangeacc"))()
-
                 -- ========================================
                 -- CHECK LEVIATHAN HEART (CHỈ ACC KHÁCH)
                 -- ========================================
