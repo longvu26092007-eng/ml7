@@ -1,5 +1,5 @@
 getgenv().Settings = {
-    ["Max Chests"] = 50; -- if you collected 50 chests, hop server
+    ["Max Chests"] = 30; -- if you collected 50 chests, hop server
     ["Reset After Collect Chests"] = 10; -- if you collected 10 chests, it will reset for safe (anti kick)
 };
 PlaceId, JobId = game.PlaceId, game.JobId
