@@ -132,23 +132,61 @@ FastAttack = (function(x)
     lastCallFA = tick()
 end)
 print('func')
-local lastHop, inHopPP = tick(), false
-HopServer = (function(mx) if mx then if mx >= Players.MaxPlayers then mx = Players.MaxPlayers - 1 end end
-    if inHopPP then return false end
-    if tick() - lastHop < 5 then return end lastHop = tick()
-    mx = math.abs(mx) or 4 local id, c = PlaceId, ""
-    local THop = function()
-        local r = pcall(function()
-            local j = HttpService:JSONDecode(game:HttpGetAsync("https://games.roblox.com/v1/games/"..id.."/servers/Public?sortOrder=Asc&limit=100"..(c ~= "" and "&cursor="..c or "")))
-            for _,v in next, j.data do if v.playing <= mx and v.id ~= JobId then TeleportService:TeleportToPlaceInstance(PlaceId, v.id, LocalPlayer) return true end
-            end c = j.nextPageCursor or ""
-        end)
-        if not r or c == "" then warn("Couldn't find a server") end
+function IfTableHaveIndex(j)
+    for _ in j do
+        return true
     end
-    spawn(function() pcall(function()
-        while true do inHopPP = true THop() task.wait(30) end
-    end) end)
-end)
+end
+local LastServersDataPulled, CachedServers
+function GetServers()
+    if LastServersDataPulled then
+        if os.time() - LastServersDataPulled < 60 then
+            return CachedServers
+        end
+    end
+
+    for i = 1, 100, 1 do
+        local data = game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser"):InvokeServer(i)
+        if IfTableHaveIndex(data) then
+            LastServersDataPulled = os.time()
+            CachedServers = data
+            return data
+        end
+    end
+end
+HopServer = function(Reason, MaxPlayers, ForcedRegion)
+    local Servers = GetServers()
+    local ArrayServers = {}
+
+    for i, v in Servers do
+        table.insert(ArrayServers, {
+            JobId = i,
+            Players = v.Count,
+            LastUpdate = v.__LastUpdate,
+            Region = v.Region
+        })
+    end
+    print(#ArrayServers, 'servers received')
+    local ServerData
+    for i = 1, #ArrayServers do
+        while task.wait() do
+            local Index = math.random(1, #ArrayServers)
+            ServerData = ArrayServers[Index]
+            if ServerData then
+                if not MaxPlayers or ServerData.Players < 5 then
+                    if not ForcedRegion or ServerData.Regoin == ForcedRegion then
+                        print("Found Server:", ServerData.JobId, 'Player Count:', ServerData.Players, "Region:",
+                            ServerData.Region)
+                        break
+                    end
+                end
+            end
+        end
+
+        print('Teleporting to', ServerData.JobId, '...')
+        game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser"):InvokeServer('teleport', ServerData.JobId)
+    end
+end
 local connection, tween, pathPart, isTweening = nil, nil, nil, false
 function Tween(targetCFrame: CFrame | boolean, target: CFrame) --old tween, lastest update: 5 months ago
     pcall(function() Character.Humanoid.Sit = false end)
