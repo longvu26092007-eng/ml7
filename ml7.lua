@@ -229,13 +229,7 @@ task.spawn(function()
 
     -- PHẦN CHECK MATERIAL SIÊU TỐC
     SpawnLabel.Text = "Status: Fast Checking..."
-    local darkFragCount = 0
-    
-    local startCheck = tick()
-    repeat
-        darkFragCount = GetMaterialCount("Dark Fragment")
-        task.wait(0.5)
-    until darkFragCount >= 2 or (tick() - startCheck) > 5
+    local darkFragCount = GetMaterialCount("Dark Fragment")
 
     if darkFragCount >= 2 then
         SpawnLabel.Text = "Status: Material 2/2! Running Farm..."
