@@ -102,34 +102,35 @@ RightPanel.Position = UDim2.new(0.5, 5, 0, 40)
 RightPanel.BackgroundTransparency = 1
 Instance.new("UIListLayout", RightPanel).Padding = UDim.new(0, 2)
 
-local function GetMaterialCount(matName)
-    local success, inventory = pcall(function() return services.CommF:InvokeServer("getInventory") end)
-    if success and type(inventory) == "table" then
-        for _, item in ipairs(inventory) do
-            if item.Name == matName then return item.Count end
-        end
+local function GetInventory()
+    local ok, inv = pcall(function() return services.CommF:InvokeServer("getInventory") end)
+    if ok and type(inv) == "table" then return inv end
+    return {}
+end
+
+local function GetMaterialCount(matName, inv)
+    if not inv then inv = GetInventory() end
+    for _, item in ipairs(inv) do
+        if item.Name == matName then return item.Count end
     end
     return 0
 end
 
 local function UpdateMaterials()
-    local success, inventory = pcall(function() return services.CommF:InvokeServer("getInventory") end)
+    local inv = GetInventory()
     RightPanel:ClearAllChildren()
     Instance.new("UIListLayout", RightPanel).Padding = UDim.new(0, 2)
-    if success and type(inventory) == "table" then
-        local MaterialChecks = {{"Demonic Wisp", 20}, {"Vampire Fang", 20}, {"Dark Fragment", 2}}
-        for _, data in ipairs(MaterialChecks) do
-            local count = 0
-            for _, item in ipairs(inventory) do if item.Name == data[1] then count = item.Count break end end
-            local mLabel = Instance.new("TextLabel", RightPanel)
-            mLabel.Size = UDim2.new(1, 0, 0, 20)
-            mLabel.BackgroundTransparency = 1
-            mLabel.Text = string.format("📦 %s: %d/%d", data[1], count, data[2])
-            mLabel.TextColor3 = (count >= data[2]) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
-            mLabel.Font = Enum.Font.Gotham
-            mLabel.TextSize = 11
-            mLabel.TextXAlignment = Enum.TextXAlignment.Right
-        end
+    local MaterialChecks = {{"Demonic Wisp", 20}, {"Vampire Fang", 20}, {"Dark Fragment", 2}}
+    for _, data in ipairs(MaterialChecks) do
+        local count = GetMaterialCount(data[1], inv)
+        local mLabel = Instance.new("TextLabel", RightPanel)
+        mLabel.Size = UDim2.new(1, 0, 0, 20)
+        mLabel.BackgroundTransparency = 1
+        mLabel.Text = string.format("📦 %s: %d/%d", data[1], count, data[2])
+        mLabel.TextColor3 = (count >= data[2]) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+        mLabel.Font = Enum.Font.Gotham
+        mLabel.TextSize = 11
+        mLabel.TextXAlignment = Enum.TextXAlignment.Right
     end
 end
 task.spawn(function() while task.wait(10) do UpdateMaterials() end end)
@@ -157,7 +158,8 @@ task.spawn(function()
 
     -- 2. Vòng lặp đếm lượng Fang thực tế trong kho đồ (Check đột biến)
     while not fangDone do
-        local fangCount = GetMaterialCount("Vampire Fang")
+        local inv = GetInventory()
+        local fangCount = GetMaterialCount("Vampire Fang", inv)
         
         local currentFileContent = ""
         if isfolder(FolderName) and isfile(FangFileName) then
@@ -227,9 +229,10 @@ task.spawn(function()
         end
     end
 
-    -- PHẦN CHECK MATERIAL SIÊU TỐC
-    SpawnLabel.Text = "Status: Fast Checking..."
-    local darkFragCount = GetMaterialCount("Dark Fragment")
+    -- CHECK MATERIAL (1 lần gọi inventory duy nhất)
+    SpawnLabel.Text = "Status: Checking..."
+    local inv = GetInventory()
+    local darkFragCount = GetMaterialCount("Dark Fragment", inv)
 
     if darkFragCount >= 2 then
         SpawnLabel.Text = "Status: Material 2/2! Running Farm..."
