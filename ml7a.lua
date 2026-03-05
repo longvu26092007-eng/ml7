@@ -72,6 +72,37 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(255, 200, 0)
 Instance.new("UICorner", MainFrame)
 
+-- Nút Run Demonic (ẩn mặc định, hiện khi Đã Done)
+local RunDemonicBtn = Instance.new("TextButton", MainFrame)
+RunDemonicBtn.Size = UDim2.new(0, 120, 0, 25)
+RunDemonicBtn.Position = UDim2.new(1, -130, 1, -30)
+RunDemonicBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+RunDemonicBtn.Text = "Run Demonic"
+RunDemonicBtn.TextColor3 = Color3.fromRGB(255, 200, 0)
+RunDemonicBtn.Font = Enum.Font.GothamBold
+RunDemonicBtn.TextSize = 12
+RunDemonicBtn.Visible = false
+Instance.new("UICorner", RunDemonicBtn).CornerRadius = UDim.new(0, 4)
+Instance.new("UIStroke", RunDemonicBtn).Color = Color3.fromRGB(255, 200, 0)
+
+RunDemonicBtn.MouseButton1Click:Connect(function()
+    RunDemonicBtn.Text = "Loading..."
+    RunDemonicBtn.TextColor3 = Color3.fromRGB(0, 255, 255)
+    task.spawn(function()
+        getgenv().Key = "51e126ee832d3c4fff7b6178"
+        getgenv().NewUI = true
+        getgenv().Config = {
+            ["Select Material"] = "Demonic Wisp",
+            ["Farm Material"] = true,
+            ["Start Farm"] = true,
+            ["Hop Sever"] = true
+        }
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
+    end)
+    RunDemonicBtn.Text = "✅ Running"
+    RunDemonicBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
+end)
+
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, 0, 0, 35)
 Title.Text = "VuNguyen_Software - Kaitun V1"
@@ -223,6 +254,7 @@ task.spawn(function()
         if readfile(FangFileName) == "Đã Done" then
             SpawnLabel.Text = "Status: Fast Run SA!"
             SpawnLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            RunDemonicBtn.Visible = true
             print("[Hệ Thống] Đầu vào quét thấy file Đã Done. Chạy getSA và bỏ qua các logic khác!")
             loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/2f576450d81d7643d532062f82461464/raw/77db4980c68c917613b9cf04848183606816cf12/getSA"))()
             return
