@@ -272,7 +272,7 @@ task.spawn(function()
                 StatusLabel.Text = "Owner Found: " .. foundOwner .. "\nExecuting Leviathan Script..."
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                 
-                getgenv().Key = "1f34f32b6f1917a66d57e8c6"
+                getgenv().Key = "51e126ee832d3c4fff7b6178"
                 getgenv().Config = {
                     ["Select Owner Boat Beast Hunter"] = foundOwner,
                     ["Auto light the torch"] = true,
@@ -347,7 +347,7 @@ task.spawn(function()
             
             StatusLabel.Text = "Owner Mode: Loading Leviathan Script..."
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-            getgenv().Key = "1f34f32b6f1917a66d57e8c6"
+            getgenv().Key = "51e126ee832d3c4fff7b6178"
             loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
         end
     end
