@@ -272,7 +272,7 @@ task.spawn(function()
         
         -- [SỬA 3] Chạy Ultimax Radar TRƯỚC
         task.spawn(function()
-            loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/c726ae806cc5e9c78a865949f29d669ec5ce8dfe/ultimaxradar"))()
+            loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
         end)
 
         -- 5 giây sau → BananaHub farm Vampire Fang
