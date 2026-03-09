@@ -273,15 +273,17 @@ task.spawn(function()
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                 
                 getgenv().Key = "51e126ee832d3c4fff7b6178"
-                getgenv().Config = {
-                    ["Select Owner Boat Beast Hunter"] = foundOwner,
-                    ["Auto light the torch"] = true,
-                    ["No Frog"] = true,
-                    ["Boost Fps"] = true,
-                    ["Start Hunt Leviathan"] = true
-                }
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
-
+getgenv().Config = {
+    ["Select Owner Boat Beast Hunter"] = foundOwner,
+    ["Auto light the torch"] = true,
+    ["No Frog"] = true,
+    ["Boost Fps"] = true,
+    ["Start Hunt Leviathan"] = true,
+    ["Select Skills Sword"] = {},
+    ["Select Skills Gun"] = {},
+    ["Select Skills Blox Fruit"] = {}
+}
+loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
                 -- ========================================
                 -- CHECK LEVIATHAN HEART (CHỈ ACC KHÁCH)
                 -- ========================================
