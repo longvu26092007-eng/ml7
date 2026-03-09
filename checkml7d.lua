@@ -69,8 +69,8 @@ local ScreenGui = Instance.new("ScreenGui", services.CoreGui)
 ScreenGui.Name = "VFAndSA_UI"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 300, 0, 130)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -65)
+MainFrame.Size = UDim2.new(0, 300, 0, 155)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -77)
 MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -102,10 +102,21 @@ StatusLabel.Font = Enum.Font.GothamSemibold
 StatusLabel.TextSize = 11
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
+-- Melee
+local MeleeLabel = Instance.new("TextLabel", MainFrame)
+MeleeLabel.Size = UDim2.new(1, -20, 0, 16)
+MeleeLabel.Position = UDim2.new(0, 10, 0, 54)
+MeleeLabel.Text = "🥊 Melee: Checking..."
+MeleeLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
+MeleeLabel.BackgroundTransparency = 1
+MeleeLabel.Font = Enum.Font.GothamSemibold
+MeleeLabel.TextSize = 11
+MeleeLabel.TextXAlignment = Enum.TextXAlignment.Left
+
 -- Materials
 local MatFrame = Instance.new("Frame", MainFrame)
 MatFrame.Size = UDim2.new(1, -20, 0, 60)
-MatFrame.Position = UDim2.new(0, 10, 0, 56)
+MatFrame.Position = UDim2.new(0, 10, 0, 73)
 MatFrame.BackgroundTransparency = 1
 Instance.new("UIListLayout", MatFrame).Padding = UDim.new(0, 3)
 
@@ -223,14 +234,18 @@ local function GetEquippedMelee()
 end
 
 task.spawn(function()
-    task.wait(1) -- đợi character load
+    task.wait(1)
     local meleeName, isHolding = GetEquippedMelee()
     currentMelee = meleeName
 
     if meleeName ~= "None" then
-        local holdText = isHolding and " (đang cầm)" or " (trong BP)"
-        print("[P0.5] Melee: " .. meleeName .. holdText)
+        local holdText = isHolding and "cầm" or "BP"
+        MeleeLabel.Text = "🥊 Melee: " .. meleeName .. " (" .. holdText .. ")"
+        MeleeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        print("[P0.5] Melee: " .. meleeName .. " (" .. holdText .. ")")
     else
+        MeleeLabel.Text = "🥊 Melee: Không có"
+        MeleeLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         print("[P0.5] Không tìm thấy Melee nào")
     end
 end)
