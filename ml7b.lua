@@ -285,6 +285,25 @@ task.spawn(function()
                 end)
                 RunDemonicBtn.Text = "✅ Running"
                 RunDemonicBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
+
+                -- Giám sát Demonic Wisp → đủ 20/20 → kick
+                task.spawn(function()
+                    while task.wait(10) do
+                        local checkInv = GetInventory()
+                        local wispCount = GetMaterialCount("Demonic Wisp", checkInv)
+                        SpawnLabel.Text = "Demonic Wisp: " .. wispCount .. "/20"
+                        SpawnLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+
+                        if wispCount >= 20 then
+                            SpawnLabel.Text = "Demonic Wisp: 20/20 ✅ KICK!"
+                            SpawnLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            warn("[Hệ Thống] Demonic Wisp đủ 20/20! Kick để rejoin Fast Run SA...")
+                            task.wait(2)
+                            Player:Kick("\n[ VuNguyen Hub ]\nĐã đủ 20/20 Demonic Wisp!\nRejoin để tiếp tục Fast Run SA.")
+                            break
+                        end
+                    end
+                end)
             end)
 
             return
