@@ -342,23 +342,22 @@ task.spawn(function()
                                 saActive = true
                             end
 
+                            -- Nếu SA active → kick ngay để rejoin vào P1A
+                            if saActive then
+                                StatusLabel.Text = "P1D: SA Active! KICK!"
+                                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                warn("[P1D] SA đã active trong lúc farm! Kick rejoin...")
+                                task.wait(2)
+                                Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                                break
+                            end
+
                             -- Check Melee
                             local meleeName = GetEquippedMelee()
                             currentMelee = meleeName
                             if meleeName ~= "None" then
                                 MeleeLabel.Text = "🥊 Melee: " .. meleeName
                                 MeleeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                            end
-
-                            -- Nếu SA active + cầm SA → ghi file xong
-                            if saActive and meleeName == "Sanguine Art" then
-                                StatusLabel.Text = "P1D: ✅ SA Active + Có SA!"
-                                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                                pcall(function()
-                                    writefile(Player.Name .. ".txt", "Completed-melee")
-                                end)
-                                warn("[P1D] SA Active + Sanguine Art → Completed-melee!")
-                                break
                             end
 
                             task.wait(15)
@@ -379,12 +378,31 @@ task.spawn(function()
 
                 task.wait(10)
 
-                -- Giám sát VF mỗi 10s → đủ 20/20 → kick
+                -- Giám sát VF mỗi 10s → đủ 20/20 → kick | SA active → kick
                 task.spawn(function()
                     while task.wait(10) do
                         local checkInv = GetInventory()
                         local currentVF = GetMaterialCount("Vampire Fang", checkInv)
                         StatusLabel.Text = "P1C: VF " .. currentVF .. "/20 | Farming..."
+
+                        -- Check SA Active
+                        local saOk, saResult = pcall(function()
+                            return services.CommF:InvokeServer("BuySanguineArt", true)
+                        end)
+                        if saOk and type(saResult) ~= "string" then
+                            saActive = true
+                        elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
+                            saActive = true
+                        end
+
+                        if saActive then
+                            StatusLabel.Text = "P1C: SA Active! KICK!"
+                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            warn("[P1C] SA đã active trong lúc farm VF! Kick rejoin...")
+                            task.wait(2)
+                            Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                            break
+                        end
 
                         if currentVF >= 20 then
                             StatusLabel.Text = "P1C: VF 20/20 ✅ KICK!"
@@ -426,12 +444,31 @@ task.spawn(function()
                 return
             end
 
-            -- Giám sát DF mỗi 10s → đủ 2/2 → kick
+            -- Giám sát DF mỗi 10s → đủ 2/2 → kick | SA active → kick
             task.spawn(function()
                 while task.wait(10) do
                     local checkInv = GetInventory()
                     local currentDF = GetMaterialCount("Dark Fragment", checkInv)
                     StatusLabel.Text = "P1B: DF " .. currentDF .. "/2 | Farming..."
+
+                    -- Check SA Active
+                    local saOk, saResult = pcall(function()
+                        return services.CommF:InvokeServer("BuySanguineArt", true)
+                    end)
+                    if saOk and type(saResult) ~= "string" then
+                        saActive = true
+                    elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
+                        saActive = true
+                    end
+
+                    if saActive then
+                        StatusLabel.Text = "P1B: SA Active! KICK!"
+                        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        warn("[P1B] SA đã active trong lúc farm DF! Kick rejoin...")
+                        task.wait(2)
+                        Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                        break
+                    end
 
                     if currentDF >= 2 then
                         StatusLabel.Text = "P1B: DF 2/2 ✅ KICK!"
