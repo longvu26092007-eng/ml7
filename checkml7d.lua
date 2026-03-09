@@ -155,8 +155,39 @@ services.UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-StatusLabel.Text = "Status: Ready ✅"
-StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+StatusLabel.Text = "Status: Checking SA..."
+StatusLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
 print("[VFAndSA P1] ✅ Loaded | LeftAlt ẩn/hiện")
+
+-- ==========================================
+-- PHẦN 0: CHECK SANGUINE ART STATUS
+-- ==========================================
+local saActive = false
+
+task.spawn(function()
+    local ok, result = pcall(function()
+        return services.CommF:InvokeServer("BuySanguineArt", true)
+    end)
+
+    if ok then
+        if type(result) == "string" and result:lower():find("bring me") then
+            -- Chưa active - server yêu cầu materials
+            saActive = false
+            StatusLabel.Text = "SA: ❌ Chưa active"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            print("[P0] Sanguine Art chưa active. Server:", result)
+        else
+            -- Đã active (trả về number hoặc không phải "bring me")
+            saActive = true
+            StatusLabel.Text = "SA: ✅ Đã active! (" .. tostring(result) .. ")"
+            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            print("[P0] Sanguine Art đã active! Response:", tostring(result))
+        end
+    else
+        StatusLabel.Text = "SA: ⚠ Lỗi check"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        warn("[P0] Lỗi check SA:", tostring(result))
+    end
+end)
 
 -- Thêm logic mới ở đây
