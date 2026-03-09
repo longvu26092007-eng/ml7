@@ -191,3 +191,46 @@ task.spawn(function()
 end)
 
 -- Thêm logic mới ở đây
+
+-- ==========================================
+-- PHẦN 0.5: CHECK MELEE ĐANG EQUIP
+-- ==========================================
+local currentMelee = "None"
+
+local function GetEquippedMelee()
+    local char = Player.Character
+    local bp = Player:FindFirstChild("Backpack")
+
+    -- Check trong Character (đang cầm)
+    if char then
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") and tool.ToolTip == "Melee" then
+                return tool.Name, true -- tên, đang cầm
+            end
+        end
+    end
+
+    -- Check trong Backpack (có nhưng chưa cầm)
+    if bp then
+        for _, tool in ipairs(bp:GetChildren()) do
+            if tool:IsA("Tool") and tool.ToolTip == "Melee" then
+                return tool.Name, false -- tên, chưa cầm
+            end
+        end
+    end
+
+    return "None", false
+end
+
+task.spawn(function()
+    task.wait(1) -- đợi character load
+    local meleeName, isHolding = GetEquippedMelee()
+    currentMelee = meleeName
+
+    if meleeName ~= "None" then
+        local holdText = isHolding and " (đang cầm)" or " (trong BP)"
+        print("[P0.5] Melee: " .. meleeName .. holdText)
+    else
+        print("[P0.5] Không tìm thấy Melee nào")
+    end
+end)
