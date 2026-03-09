@@ -1,5 +1,6 @@
 -- [[ CONFIG AREA ]]
 getgenv().Team = "Pirates"
+getgenv().Key = getgenv().Key or "NHAP_KEY_VAO_DAY"
 
 -- ==========================================
 -- CHỌN TEAM
@@ -276,7 +277,156 @@ task.spawn(function()
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
             print("[P1B] Dark Fragment " .. dfCount .. "/2 → Đủ! Chuyển bước tiếp...")
 
-            -- TODO: Phần tiếp theo sẽ thêm ở đây
+            -- ==========================================
+            -- PHẦN 1C: DF ĐỦ → CHECK VAMPIRE FANG
+            -- ==========================================
+            local vfCount = GetMaterialCount("Vampire Fang", inv)
+
+            if vfCount >= 20 then
+                -- Đủ VF → tiếp P1D
+                StatusLabel.Text = "P1C: VF " .. vfCount .. "/20 ✅ → P1D..."
+                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                print("[P1C] Vampire Fang " .. vfCount .. "/20 → Đủ! Chuyển P1D...")
+
+                -- ==========================================
+                -- PHẦN 1D: VF ĐỦ → CHECK DEMONIC WISP
+                -- ==========================================
+                local dwCount = GetMaterialCount("Demonic Wisp", inv)
+
+                if dwCount >= 20 then
+                    -- Đủ cả 3 materials → check SA lại (vì rejoin sẽ check từ đầu)
+                    StatusLabel.Text = "P1D: DW " .. dwCount .. "/20 ✅ Đủ tất cả!"
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Đủ tất cả materials!")
+                else
+                    -- Chưa đủ DW → farm Demonic Wisp + Vampire Fang
+                    StatusLabel.Text = "P1D: DW " .. dwCount .. "/20 → Farm..."
+                    StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                    print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Farm!")
+
+                    -- Chạy Ultimax Radar trước 10s
+                    task.spawn(function()
+                        loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
+                    end)
+
+                    task.wait(10)
+
+                    -- Load BananaHub farm Demonic Wisp
+                    task.spawn(function()
+                        getgenv().NewUI = true
+                        getgenv().Config = {
+                            ["Select Material"] = "Demonic Wisp",
+                            ["Farm Material"] = true,
+                            ["Start Farm"] = true,
+                            ["Hop Sever"] = true
+                        }
+                        loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
+                    end)
+
+                    -- Giám sát DW + SA Active + Melee (tối ưu: 1 lần gọi inventory)
+                    task.spawn(function()
+                        while true do
+                            local checkInv = GetInventory()
+                            local currentDW = GetMaterialCount("Demonic Wisp", checkInv)
+                            local currentVF = GetMaterialCount("Vampire Fang", checkInv)
+                            local currentDF = GetMaterialCount("Dark Fragment", checkInv)
+                            StatusLabel.Text = string.format("P1D: DW %d/20 | VF %d/20 | DF %d/2", currentDW, currentVF, currentDF)
+
+                            -- Check SA Active (mỗi lần loop)
+                            local saOk, saResult = pcall(function()
+                                return services.CommF:InvokeServer("BuySanguineArt", true)
+                            end)
+                            if saOk and type(saResult) ~= "string" then
+                                saActive = true
+                            elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
+                                saActive = true
+                            end
+
+                            -- Nếu SA active → kick ngay để rejoin vào P1A
+                            if saActive then
+                                StatusLabel.Text = "P1D: SA Active! KICK!"
+                                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                warn("[P1D] SA đã active trong lúc farm! Kick rejoin...")
+                                task.wait(2)
+                                Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                                break
+                            end
+
+                            -- Check Melee
+                            local meleeName = GetEquippedMelee()
+                            currentMelee = meleeName
+                            if meleeName ~= "None" then
+                                MeleeLabel.Text = "🥊 Melee: " .. meleeName
+                                MeleeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            end
+
+                            task.wait(15)
+                        end
+                    end)
+                end
+
+            else
+                -- Chưa đủ VF → farm Vampire Fang
+                StatusLabel.Text = "P1C: VF " .. vfCount .. "/20 → Farm..."
+                StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                print("[P1C] Vampire Fang " .. vfCount .. "/20 → Farm!")
+
+                -- Chạy Ultimax Radar trước 10s
+                task.spawn(function()
+                    loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
+                end)
+
+                task.wait(10)
+
+                -- Giám sát VF mỗi 10s → đủ 20/20 → kick | SA active → kick
+                task.spawn(function()
+                    while task.wait(10) do
+                        local checkInv = GetInventory()
+                        local currentVF = GetMaterialCount("Vampire Fang", checkInv)
+                        StatusLabel.Text = "P1C: VF " .. currentVF .. "/20 | Farming..."
+
+                        -- Check SA Active
+                        local saOk, saResult = pcall(function()
+                            return services.CommF:InvokeServer("BuySanguineArt", true)
+                        end)
+                        if saOk and type(saResult) ~= "string" then
+                            saActive = true
+                        elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
+                            saActive = true
+                        end
+
+                        if saActive then
+                            StatusLabel.Text = "P1C: SA Active! KICK!"
+                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            warn("[P1C] SA đã active trong lúc farm VF! Kick rejoin...")
+                            task.wait(2)
+                            Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                            break
+                        end
+
+                        if currentVF >= 20 then
+                            StatusLabel.Text = "P1C: VF 20/20 ✅ KICK!"
+                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            print("[P1C] Vampire Fang đủ 20/20! Kick rejoin...")
+                            task.wait(2)
+                            Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 20/20 Vampire Fang!\nRejoin để tiếp tục.")
+                            break
+                        end
+                    end
+                end)
+
+                -- Load BananaHub farm Vampire Fang
+                task.spawn(function()
+                    getgenv().NewUI = true
+                    getgenv().Config = {
+                        ["Select Material"] = "Vampire Fang",
+                        ["Farm Material"] = true,
+                        ["Start Farm"] = true,
+                        ["Hop Sever"] = true
+                    }
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
+                end)
+            end
 
         else
             -- Chưa đủ DF → farm Darkbeard
@@ -294,12 +444,31 @@ task.spawn(function()
                 return
             end
 
-            -- Giám sát DF mỗi 10s → đủ 2/2 → kick
+            -- Giám sát DF mỗi 10s → đủ 2/2 → kick | SA active → kick
             task.spawn(function()
                 while task.wait(10) do
                     local checkInv = GetInventory()
                     local currentDF = GetMaterialCount("Dark Fragment", checkInv)
                     StatusLabel.Text = "P1B: DF " .. currentDF .. "/2 | Farming..."
+
+                    -- Check SA Active
+                    local saOk, saResult = pcall(function()
+                        return services.CommF:InvokeServer("BuySanguineArt", true)
+                    end)
+                    if saOk and type(saResult) ~= "string" then
+                        saActive = true
+                    elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
+                        saActive = true
+                    end
+
+                    if saActive then
+                        StatusLabel.Text = "P1B: SA Active! KICK!"
+                        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        warn("[P1B] SA đã active trong lúc farm DF! Kick rejoin...")
+                        task.wait(2)
+                        Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                        break
+                    end
 
                     if currentDF >= 2 then
                         StatusLabel.Text = "P1B: DF 2/2 ✅ KICK!"
