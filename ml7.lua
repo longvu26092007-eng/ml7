@@ -286,21 +286,40 @@ task.spawn(function()
                 RunDemonicBtn.Text = "✅ Running"
                 RunDemonicBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
 
-                -- Giám sát Demonic Wisp → đủ 20/20 → kick
+                -- Giám sát Demonic Wisp → đủ 20/20 hoặc detect craft (DF=0 + Wisp tụt) → kick
                 task.spawn(function()
-                    while task.wait(10) do
+                    while true do
                         local checkInv = GetInventory()
                         local wispCount = GetMaterialCount("Demonic Wisp", checkInv)
-                        SpawnLabel.Text = "Demonic Wisp: " .. wispCount .. "/20"
+                        local dfCount = GetMaterialCount("Dark Fragment", checkInv)
+                        SpawnLabel.Text = "Wisp: " .. wispCount .. "/20 | DF: " .. dfCount .. "/2"
                         SpawnLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
 
+                        -- Đủ 20/20 → kick
                         if wispCount >= 20 then
                             SpawnLabel.Text = "Demonic Wisp: 20/20 ✅ KICK!"
                             SpawnLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                            warn("[Hệ Thống] Demonic Wisp đủ 20/20! Kick để rejoin Fast Run SA...")
+                            warn("[Hệ Thống] Demonic Wisp đủ 20/20! Kick...")
                             task.wait(2)
                             Player:Kick("\n[ VuNguyen Hub ]\nĐã đủ 20/20 Demonic Wisp!\nRejoin để tiếp tục Fast Run SA.")
                             break
+                        end
+
+                        -- Detect craft: DF tụt về 0 + Wisp tụt về 0 hoặc 1 → đã dùng materials
+                        if dfCount == 0 and wispCount <= 1 then
+                            SpawnLabel.Text = "DF=0 + Wisp≤1 → Đã craft! KICK!"
+                            SpawnLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            warn("[Hệ Thống] Detect craft (DF=0 + Wisp≤1)! Kick...")
+                            task.wait(2)
+                            Player:Kick("\n[ VuNguyen Hub ]\nPhát hiện đã dùng materials (DF=0, Wisp≤1)!\nRejoin để tiếp tục.")
+                            break
+                        end
+
+                        -- Tốc độ check: ≥19 → mỗi 1s, còn lại mỗi 10s
+                        if wispCount >= 19 then
+                            task.wait(1)
+                        else
+                            task.wait(10)
                         end
                     end
                 end)
