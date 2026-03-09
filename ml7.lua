@@ -70,8 +70,8 @@ local ScreenGui = Instance.new("ScreenGui", services.CoreGui)
 ScreenGui.Name = "VFAndSA_UI"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 300, 0, 155)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -77)
+MainFrame.Size = UDim2.new(0, 300, 0, 175)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -87)
 MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -116,7 +116,7 @@ MeleeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 -- Materials
 local MatFrame = Instance.new("Frame", MainFrame)
-MatFrame.Size = UDim2.new(1, -20, 0, 60)
+MatFrame.Size = UDim2.new(1, -20, 0, 78)
 MatFrame.Position = UDim2.new(0, 10, 0, 73)
 MatFrame.BackgroundTransparency = 1
 Instance.new("UIListLayout", MatFrame).Padding = UDim.new(0, 3)
@@ -140,6 +140,17 @@ for _, data in ipairs(MaterialChecks) do
     matLabels[data[1]] = l
 end
 
+-- Fragment label
+local fragL = Instance.new("TextLabel", MatFrame)
+fragL.Size = UDim2.new(1, 0, 0, 16)
+fragL.BackgroundTransparency = 1
+fragL.Text = "💎 Fragment: .../5000"
+fragL.TextColor3 = Color3.fromRGB(200, 200, 200)
+fragL.Font = Enum.Font.Gotham
+fragL.TextSize = 11
+fragL.TextXAlignment = Enum.TextXAlignment.Left
+matLabels["Fragment"] = fragL
+
 local function UpdateMaterials()
     local inv = GetInventory()
     for _, data in ipairs(MaterialChecks) do
@@ -149,6 +160,16 @@ local function UpdateMaterials()
             label.Text = string.format("📦 %s: %d/%d", data[1], count, data[2])
             label.TextColor3 = (count >= data[2]) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(200, 200, 200)
         end
+    end
+    -- Update Fragment
+    local fragCount = 0
+    pcall(function()
+        fragCount = Player.Data.Fragments.Value
+    end)
+    local fragLabel = matLabels["Fragment"]
+    if fragLabel then
+        fragLabel.Text = string.format("💎 Fragment: %d/5000", fragCount)
+        fragLabel.TextColor3 = (fragCount >= 5000) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(200, 200, 200)
     end
 end
 
@@ -167,9 +188,71 @@ services.UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-StatusLabel.Text = "Status: Checking SA..."
+StatusLabel.Text = "Status: Checking Fragment..."
 StatusLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
 print("[VFAndSA P1] ✅ Loaded | LeftAlt ẩn/hiện")
+
+-- ==========================================
+-- CHECK FRAGMENT (trước Phần 0)
+-- Dưới 5000 → farm Katakuri | Trên 5000 → tiếp Phần 0
+-- ==========================================
+local fragmentOk = false
+
+task.spawn(function()
+    local fragCount = 0
+    pcall(function()
+        fragCount = Player:FindFirstChild("Data") and Player.Data:FindFirstChild("Fragments") and Player.Data.Fragments.Value or 0
+    end)
+
+    print("[Fragment] Fragments: " .. fragCount .. "/5000")
+
+    if fragCount >= 5000 then
+        fragmentOk = true
+        StatusLabel.Text = "Fragment: " .. fragCount .. "/5000 ✅"
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        print("[Fragment] Đủ! Tiếp tục Phần 0...")
+    else
+        StatusLabel.Text = "Fragment: " .. fragCount .. "/5000 → Farm Katakuri..."
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        print("[Fragment] Chưa đủ! Farm Katakuri...")
+
+        -- Giám sát Fragment mỗi 15s → đủ 5000 → kick
+        task.spawn(function()
+            while task.wait(15) do
+                local currentFrag = 0
+                pcall(function()
+                    currentFrag = Player.Data.Fragments.Value
+                end)
+                StatusLabel.Text = "Fragment: " .. currentFrag .. "/5000 | Farming..."
+
+                if currentFrag >= 5000 then
+                    StatusLabel.Text = "Fragment: 5000 ✅ KICK!"
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    print("[Fragment] Đủ 5000! Kick rejoin...")
+                    task.wait(2)
+                    Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 5000 Fragments!\nRejoin để tiếp tục.")
+                    break
+                end
+            end
+        end)
+
+        -- Load BananaHub farm Katakuri
+        task.spawn(function()
+            getgenv().NewUI = true
+            getgenv().Config = {
+                ["Select Method Farm"] = "Farm Katakuri",
+                ["Hop Find Katakuri"] = true,
+                ["Start Farm"] = true,
+            }
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
+        end)
+
+        return -- Dừng luồng, không vào Phần 0
+    end
+end)
+
+-- Đợi Fragment check xong trước khi vào Phần 0
+repeat task.wait(1) until fragmentOk
 
 -- ==========================================
 -- PHẦN 0: CHECK SANGUINE ART STATUS
