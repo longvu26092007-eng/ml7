@@ -254,9 +254,39 @@ task.spawn(function()
         if readfile(FangFileName) == "Đã Done" then
             SpawnLabel.Text = "Status: Fast Run SA!"
             SpawnLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-            RunDemonicBtn.Visible = true
             print("[Hệ Thống] Đầu vào quét thấy file Đã Done. Chạy getSA và bỏ qua các logic khác!")
             loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/2f576450d81d7643d532062f82461464/raw/77db4980c68c917613b9cf04848183606816cf12/getSA"))()
+
+            -- Đếm ngược 3 phút → auto bật Run Demonic
+            task.spawn(function()
+                for i = 180, 1, -1 do
+                    local m = math.floor(i / 60)
+                    local s = i % 60
+                    SpawnLabel.Text = string.format("Run Demonic: %d:%02d", m, s)
+                    SpawnLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                    task.wait(1)
+                end
+
+                SpawnLabel.Text = "Status: Auto Run Demonic!"
+                SpawnLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+                RunDemonicBtn.Visible = true
+
+                -- Auto bật script Demonic
+                task.spawn(function()
+                    getgenv().Key = "51e126ee832d3c4fff7b6178"
+                    getgenv().NewUI = true
+                    getgenv().Config = {
+                        ["Select Material"] = "Demonic Wisp",
+                        ["Farm Material"] = true,
+                        ["Start Farm"] = true,
+                        ["Hop Sever"] = true
+                    }
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
+                end)
+                RunDemonicBtn.Text = "✅ Running"
+                RunDemonicBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
+            end)
+
             return
         end
     end
@@ -272,7 +302,7 @@ task.spawn(function()
         
         -- [SỬA 3] Chạy Ultimax Radar TRƯỚC
         task.spawn(function()
-            loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
+            loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/c726ae806cc5e9c78a865949f29d669ec5ce8dfe/ultimaxradar"))()
         end)
 
         -- 5 giây sau → BananaHub farm Vampire Fang
