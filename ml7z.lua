@@ -558,10 +558,6 @@ task.spawn(function()
                         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                         print("[P1B] Dark Fragment đủ 2/2! Kick rejoin...")
 
-                        pcall(function()
-                            writefile(Player.Name .. ".txt", "Completed-df")
-                        end)
-
                         task.wait(2)
                         Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 2/2 Dark Fragment!\nRejoin để tiếp tục.")
                         break
