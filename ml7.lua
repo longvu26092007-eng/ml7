@@ -565,363 +565,369 @@ task.spawn(function()
                 end
             end)
 
-            -- Load KaitunBoss farm Darkbeard (tích hợp trực tiếp)
+            -- Load KaitunBoss farm Darkbeard (FILE GỐC NGUYÊN BẢN)
             task.spawn(function()
-                local RS = game:GetService("ReplicatedStorage")
-                local CollectionService = game:GetService("CollectionService")
-                local RunService = game:GetService("RunService")
-                local TeleportService = game:GetService("TeleportService")
-                local StarterGui = game:GetService("StarterGui")
-                local GuiService = game:GetService("GuiService")
-                local VIM = game:GetService("VirtualInputManager")
-                local COMMF_ = RS:WaitForChild("Remotes"):WaitForChild("CommF_")
-                local LocalPlayer = game.Players.LocalPlayer
-                local Character = LocalPlayer.Character
-                local Humanoid = Character and Character:FindFirstChild("Humanoid")
-                local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
-
-                getgenv().Settings = getgenv().Settings or {}
-                getgenv().Settings["Max Chests"] = 50
-                getgenv().Settings["Reset After Collect Chests"] = 10
-
+                getgenv().Settings = {
+                    ["Max Chests"] = 50;
+                    ["Reset After Collect Chests"] = 10;
+                }
+                PlaceId, JobId = game.PlaceId, game.JobId
+                RunService = game:GetService("RunService")
+                TweenService = game:GetService("TweenService")
+                HttpService = game:GetService("HttpService")
+                Players = game:GetService("Players")
+                ReplicatedStorage = game:GetService("ReplicatedStorage")
+                Lighting = game:GetService("Lighting")
+                CollectionService = game:GetService("CollectionService")
+                UserInputService = game:GetService("UserInputService")
+                VirtualInputManager = game:GetService("VirtualInputManager")
+                StarterGui = game:GetService("StarterGui")
+                GuiService = game:GetService("GuiService")
+                TeleportService = game:GetService("TeleportService")
+                COMMF_ = ReplicatedStorage:WaitForChild("Remotes") and ReplicatedStorage.Remotes:WaitForChild("CommF_")
+                LocalPlayer = Players.LocalPlayer
                 LocalPlayer.CharacterAdded:Connect(function(v)
-                    Character = v
-                    Humanoid = v:WaitForChild("Humanoid")
+                    Character = v Humanoid = v:WaitForChild("Humanoid")
                     HumanoidRootPart = v:WaitForChild("HumanoidRootPart")
                 end)
+                if LocalPlayer.Character then
+                    Character = LocalPlayer.Character
+                    Humanoid = Character:FindFirstChild("Humanoid") or Character:WaitForChild("Humanoid")
+                    HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart")
+                end
 
-                repeat task.wait() until Character and HumanoidRootPart and Humanoid
-
-                -- Seed & RemoteAttack
+                if not game:IsLoaded() or workspace.DistributedGameTime <= 10 then
+                    task.wait(10 - workspace.DistributedGameTime)
+                end
+                if not COMMF_ then repeat task.wait(1) until COMMF_ end
+                repeat task.wait(2) until Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChildWhichIsA("Humanoid") and Character:IsDescendantOf(workspace.Characters)
+                function CheckSea(v) return v == tonumber(workspace:GetAttribute("MAP"):match("%d+")) end
                 local remoteAttack, idremote
-                local seed = RS.Modules.Net.seed:InvokeServer()
-                task.spawn(function()
-                    for _, v in next, ({RS.Util, RS.Common, RS.Remotes, RS.Assets, RS.FX}) do
-                        for _, n in next, v:GetChildren() do
-                            if n:IsA("RemoteEvent") and n:GetAttribute("Id") then remoteAttack, idremote = n, n:GetAttribute("Id") end
-                        end
-                        v.ChildAdded:Connect(function(n)
-                            if n:IsA("RemoteEvent") and n:GetAttribute("Id") then remoteAttack, idremote = n, n:GetAttribute("Id") end
-                        end)
-                    end
-                end)
-
-                local function CheckTool(v)
+                local seed = ReplicatedStorage.Modules.Net.seed:InvokeServer()
+                task.spawn((function() for _, v in next, ({ReplicatedStorage.Util, ReplicatedStorage.Common, ReplicatedStorage.Remotes, ReplicatedStorage.Assets, ReplicatedStorage.FX}) do
+                    for _, n in next, v:GetChildren() do if n:IsA("RemoteEvent") and n:GetAttribute("Id") then remoteAttack, idremote = n, n:GetAttribute("Id") end
+                    end v.ChildAdded:Connect(function(n) if n:IsA("RemoteEvent") and n:GetAttribute("Id") then remoteAttack, idremote = n, n:GetAttribute("Id")
+                    end end) end
+                end))
+                CheckTool = (function(v)
                     for _, x in next, {LocalPlayer.Backpack, Character} do
-                        for _, v2 in next, x:GetChildren() do
-                            if v2:IsA("Tool") and (v2.Name == v or v2.Name:find(v)) then return true end
+                    for _, v2 in next, x:GetChildren() do if v2:IsA("Tool") and (v2.Name == v or v2.Name:find(v)) then return true end
+                    end end return false
+                end)
+                CheckMaterial = (function(x)
+                    for _, v in pairs(COMMF_:InvokeServer("getInventory")) do if v.Type == "Material" then if v.Name == x then return v.Count end end
+                    end return 0
+                end)
+                CheckInventory = (function(...)
+                    for _, v in pairs(COMMF_:InvokeServer("getInventory")) do
+                    for _, n in next, {...} do if v.Name == n then return true end end
+                    end return false
+                end)
+                CheckMonster = (function(...) local args = {...}
+                    local v2 = {workspace.Enemies, ReplicatedStorage}
+                    for i = 1, #args do local n = args[i]
+                        local m = workspace.Enemies:FindFirstChild(n) or ReplicatedStorage:FindFirstChild(n)
+                        if m and m:IsA("Model") and m.Name ~= "Blank Buddy" then
+                            local h = m:FindFirstChild("Humanoid") local r = m:FindFirstChild("HumanoidRootPart")
+                            if h and r and h.Health > 0 then return m end
                         end
                     end
-                    return false
-                end
-
-                local function CheckMonster(...)
-                    local args = {...}
-                    for _, container in next, {workspace.Enemies, RS} do
-                        for _, m in next, container:GetChildren() do
-                            if m:IsA("Model") and m.Name ~= "Blank Buddy" then
-                                local h = m:FindFirstChild("Humanoid")
-                                local r = m:FindFirstChild("HumanoidRootPart")
-                                if h and r and h.Health > 0 then
-                                    for _, n in next, args do
-                                        if m.Name == n or m.Name:lower():find(n:lower()) then return m end
+                    for c = 1, #v2 do local container = v2[c] local ms = container:GetChildren()
+                        for m = 1, #ms do local m = ms[m] local h = m:FindFirstChild("Humanoid")
+                            local r = m:FindFirstChild("HumanoidRootPart")
+                            if m:IsA("Model") and h and r and h.Health > 0 and m.Name ~= "Blank Buddy" then
+                                for i = 1, #args do local n = args[i]
+                                    if m.Name == n or m.Name:lower():find(n:lower()) then
+                                        return m
                                     end
                                 end
                             end
                         end
                     end
                     return false
-                end
-
-                local function EquipWeapon(v)
+                end)
+                EquipWeapon = (function(v)
                     if not Character then return end
+                    local tool = Character:FindFirstChildWhichIsA("Tool")
+                    if tool and (tool.ToolTip and tool.ToolTip == v) then return end
                     for _, x in next, LocalPlayer.Backpack:GetChildren() do
-                        if x:IsA("Tool") and x.ToolTip == v then Humanoid:EquipTool(x) return end
-                    end
-                end
-
-                -- FastAttack
-                local lastCallFA = tick()
-                local function FastAttack(x)
-                    if not HumanoidRootPart or not Character:FindFirstChildWhichIsA("Humanoid") or Character.Humanoid.Health <= 0 or not Character:FindFirstChildWhichIsA("Tool") then return end
-                    if tick() - lastCallFA <= 0.01 then return end
-                    local t = {}
-                    for _, e in next, workspace.Enemies:GetChildren() do
-                        local h = e:FindFirstChild("Humanoid")
-                        local hrp = e:FindFirstChild("HumanoidRootPart")
-                        if e ~= Character and (x and e.Name == x or not x) and h and hrp and h.Health > 0 and (hrp.Position - HumanoidRootPart.Position).Magnitude <= 65 then
-                            t[#t + 1] = e
-                        end
-                    end
-                    local n = RS.Modules.Net
-                    local h = {[2] = {}}
-                    for i = 1, #t do
-                        local v = t[i]
-                        local part = v:FindFirstChild("Head") or v:FindFirstChild("HumanoidRootPart")
-                        if not h[1] then h[1] = part end
-                        h[2][#h[2] + 1] = {v, part}
-                    end
-                    n:FindFirstChild("RE/RegisterAttack"):FireServer()
-                    n:FindFirstChild("RE/RegisterHit"):FireServer(unpack(h))
-                    cloneref(remoteAttack):FireServer(string.gsub("RE/RegisterHit", ".", function(c)
-                        return string.char(bit32.bxor(string.byte(c), math.floor(workspace:GetServerTimeNow()/10%10)+1))
-                    end), bit32.bxor(idremote+909090, seed*2), unpack(h))
-                    lastCallFA = tick()
-                end
-
-                -- Tween
-                local conn, tw, pp, isTw = nil, nil, nil, false
-                local function DoTween(targetCFrame)
-                    pcall(function() Character.Humanoid.Sit = false end)
-                    if not Character.Humanoid or Character.Humanoid.Health <= 0 then
-                        pcall(function() if pp then pp:Destroy() end end)
-                        conn, tw, pp, isTw = nil, nil, nil, false
-                        return
-                    end
-                    if targetCFrame == false then
-                        if tw then pcall(function() tw:Cancel() end) tw = nil end
-                        if conn then conn:Disconnect() conn = nil end
-                        if pp then pp:Destroy() pp = nil end
-                        isTw = false
-                        return
-                    end
-                    if isTw or not targetCFrame then return end
-                    isTw = true
-                    local root = Character:FindFirstChild("HumanoidRootPart")
-                    if not root then isTw = false return end
-                    local distance = (targetCFrame.Position - root.Position).Magnitude
-                    pp = Instance.new("Part")
-                    pp.Name = "TweenGhost"
-                    pp.Transparency = 1
-                    pp.Anchored = true
-                    pp.CanCollide = false
-                    pp.CFrame = root.CFrame
-                    pp.Size = Vector3.new(50, 50, 50)
-                    pp.Parent = workspace
-                    tw = game:GetService("TweenService"):Create(pp, TweenInfo.new(distance / 250, Enum.EasingStyle.Linear), {CFrame = targetCFrame * CFrame.new(0, 5, 0)})
-                    conn = RunService.Heartbeat:Connect(function()
-                        if root and pp then root.CFrame = pp.CFrame * CFrame.new(0, 5, 0) end
-                    end)
-                    tw.Completed:Connect(function()
-                        if conn then conn:Disconnect() conn = nil end
-                        if pp then pp:Destroy() pp = nil end
-                        tw = nil
-                        isTw = false
-                    end)
-                    tw:Play()
-                end
-
-                -- KillMonster
-                local lastKenCall = tick()
-                local function KillMonster(x)
-                    xpcall(function()
-                        for _, container in next, {workspace.Enemies, RS} do
-                            for _, v in next, container:GetChildren() do
-                                if v.Name == x then
-                                    local vh = v:FindFirstChild("Humanoid")
-                                    local vhrp = v:FindFirstChild("HumanoidRootPart")
-                                    if vh and vh.Health > 0 and vhrp then
-                                        local dist = (HumanoidRootPart.Position - vhrp.Position).Magnitude
-                                        if dist <= 70 then
-                                            FastAttack(x)
-                                            if tick() - lastKenCall >= 10 then lastKenCall = tick() RS.Remotes.CommE:FireServer("Ken", true) end
-                                            DoTween(CFrame.new(vhrp.Position + (vhrp.CFrame.LookVector * 20) + Vector3.new(0, vhrp.Position.Y > 60 and -20 or 20, 0)))
-                                            EquipWeapon("Melee")
-                                            return
-                                        end
-                                        DoTween(vhrp.CFrame)
-                                        return
-                                    end
-                                end
-                            end
-                        end
-                    end, function(e) warn("KillMonster:", e) end)
-                end
-
-                -- HopServer (__ServerBrowser)
-                local function IfTableHaveIndex(j) for _ in j do return true end end
-                local LSP, CS
-                local function GetServers()
-                    if LSP and os.time() - LSP < 60 then return CS end
-                    for i = 1, 100 do
-                        local ok, data = pcall(function()
-                            return RS:WaitForChild("__ServerBrowser"):InvokeServer(i)
-                        end)
-                        if ok and type(data) == "table" and IfTableHaveIndex(data) then
-                            LSP = os.time()
-                            CS = data
-                            return data
-                        end
-                    end
-                    return nil
-                end
-
-                local function HopServer()
-                    local servers = GetServers()
-                    if not servers then return end
-                    local arr = {}
-                    for jobId, v in pairs(servers) do
-                        if type(v) == "table" and jobId ~= game.JobId then
-                            table.insert(arr, {JobId = jobId, Players = tonumber(v.Count) or 0})
-                        end
-                    end
-                    for _ = 1, #arr do
-                        local idx = math.random(1, #arr)
-                        local s = arr[idx]
-                        if s and s.Players < 5 then
-                            RS:WaitForChild("__ServerBrowser"):InvokeServer('teleport', s.JobId)
+                        if x:IsA("Tool") and x.ToolTip == v then
+                            Humanoid:EquipTool(x)
                             return
                         end
                     end
+                end)
+                local lastCallFA = tick()
+                FastAttack = (function(x)
+                    if not HumanoidRootPart or not Character:FindFirstChildWhichIsA("Humanoid") or Character.Humanoid.Health <= 0 or not Character:FindFirstChildWhichIsA("Tool") then return end
+                    local FAD = 0.01
+                    if FAD ~= 0 and tick() - lastCallFA <= FAD then return end
+                    local t = {}
+                    for _, e in next, workspace.Enemies:GetChildren() do
+                        local h = e:FindFirstChild("Humanoid") local hrp = e:FindFirstChild("HumanoidRootPart")
+                        if e ~= Character and (x and e.Name == x or not x) and h and hrp and h.Health > 0 and (hrp.Position - HumanoidRootPart.Position).Magnitude <= 65 then t[#t + 1] = e end
+                    end
+                    local n = ReplicatedStorage.Modules.Net
+                    local h = {[2] = {}}
+                    local last
+                    for i = 1, #t do local v = t[i]
+                        local part = v:FindFirstChild("Head") or v:FindFirstChild("HumanoidRootPart")
+                        if not h[1] then h[1] = part end
+                        h[2][#h[2] + 1] = {v, part} last = v
+                    end
+                    n:FindFirstChild("RE/RegisterAttack"):FireServer()
+                    n:FindFirstChild("RE/RegisterHit"):FireServer(unpack(h))
+                    cloneref(remoteAttack):FireServer(string.gsub("RE/RegisterHit", ".",function(c)
+                        return string.char(bit32.bxor(string.byte(c), math.floor(workspace:GetServerTimeNow()/10%10)+1))
+                    end), bit32.bxor(idremote+909090, seed*2), unpack(h))
+                    lastCallFA = tick()
+                end)
+                function IfTableHaveIndex(j)
+                    for _ in j do
+                        return true
+                    end
                 end
-
-                -- PressKeyEvent
-                local PressKeyEvent = function(k, d)
-                    VIM:SendKeyEvent(true, k, false, game) task.wait(d or 0)
-                    VIM:SendKeyEvent(false, k, false, game)
-                end
-
-                -- FarmBeli
-                local all = 0
-                local function FarmBeli()
-                    local chests, c = {}, 0
-                    if all < getgenv().Settings["Max Chests"] and not CheckTool("Fist of Darkness") then
-                        for _, v in next, CollectionService:GetTagged("_ChestTagged") do
-                            if v and v.CanTouch then
-                                table.insert(chests, {obj = v, dist = (v.Position - HumanoidRootPart.Position).Magnitude})
-                            end
+                local LastServersDataPulled, CachedServers
+                function GetServers()
+                    if LastServersDataPulled then
+                        if os.time() - LastServersDataPulled < 60 then
+                            return CachedServers
                         end
-                        table.sort(chests, function(a, b) return a.dist < b.dist end)
-                        if not CheckTool("Fist of Darkness") then
-                            for i, t in next, chests do
-                                local v = t.obj
-                                if v:IsA("BasePart") and v.Name:find("Chest") and v.CanTouch then
-                                    repeat task.wait()
-                                        task.delay(2, function() v.CanTouch = false end)
-                                        if Character and Character.Humanoid and Character.Humanoid.Health > 0 then
-                                            Character:SetPrimaryPartCFrame(v.CFrame)
-                                        end
-                                        PressKeyEvent("Space")
-                                    until not v.CanTouch or CheckTool("Fist of Darkness")
-                                    c += 1; all += 1
-                                    if all >= getgenv().Settings["Max Chests"] then HopServer() break
-                                    elseif CheckTool("Fist of Darkness") then break
-                                    elseif CheckMonster("Darkbeard") then HopServer() break end
-                                    if c >= getgenv().Settings["Reset After Collect Chests"] and not CheckTool("Fist of Darkness") then
-                                        if Character and Character:FindFirstChildWhichIsA("Humanoid") then
-                                            Character:FindFirstChildWhichIsA("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
-                                        end
-                                        c = 0; task.wait(1)
+                    end
+                    for i = 1, 100, 1 do
+                        local data = game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser"):InvokeServer(i)
+                        if IfTableHaveIndex(data) then
+                            LastServersDataPulled = os.time()
+                            CachedServers = data
+                            return data
+                        end
+                    end
+                end
+                HopServer = function(Reason, MaxPlayers, ForcedRegion)
+                    local Servers = GetServers()
+                    local ArrayServers = {}
+                    for i, v in Servers do
+                        table.insert(ArrayServers, {
+                            JobId = i,
+                            Players = v.Count,
+                            LastUpdate = v.__LastUpdate,
+                            Region = v.Region
+                        })
+                    end
+                    print(#ArrayServers, 'servers received')
+                    local ServerData
+                    for i = 1, #ArrayServers do
+                        while task.wait() do
+                            local Index = math.random(1, #ArrayServers)
+                            ServerData = ArrayServers[Index]
+                            if ServerData then
+                                if not MaxPlayers or ServerData.Players < 5 then
+                                    if not ForcedRegion or ServerData.Regoin == ForcedRegion then
+                                        print("Found Server:", ServerData.JobId, 'Player Count:', ServerData.Players, "Region:",
+                                            ServerData.Region)
+                                        break
                                     end
                                 end
                             end
                         end
-                        if not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then HopServer() end
+                        print('Teleporting to', ServerData.JobId, '...')
+                        game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser"):InvokeServer('teleport', ServerData.JobId)
                     end
                 end
-
-                -- CheckSea
-                local function CheckSea(v)
-                    return v == tonumber(workspace:GetAttribute("MAP"):match("%d+"))
+                local connection, tween, pathPart, isTweening = nil, nil, nil, false
+                function Tween(targetCFrame, target)
+                    pcall(function() Character.Humanoid.Sit = false end)
+                    if not Character.Humanoid or Character.Humanoid.Health <= 0 then pcall(function() workspace.TweenGhost:Destroy() end) connection, tween, pathPart, isTweening = nil, nil, nil, false return end
+                    if targetCFrame == false then
+                        if tween then pcall(function() tween:Cancel() end) tween = nil end
+                        if connection then connection:Disconnect() connection = nil end
+                        if pathPart then pathPart:Destroy() pathPart = nil end
+                        isTweening = false
+                        return
+                    end
+                    if isTweening or not targetCFrame then return end
+                    isTweening = true
+                    local char = game.Players.LocalPlayer and game.Players.LocalPlayer.Character
+                    if not char then isTweening = false return end
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if not root or not humanoid then isTweening = false return end
+                    humanoid.Sit = false
+                    target = target or root
+                    local distance = (targetCFrame.Position - target.Position).Magnitude
+                    pathPart = Instance.new("Part")
+                    pathPart.Name = "TweenGhost"
+                    pathPart.Transparency = 1
+                    pathPart.Anchored = true
+                    pathPart.CanCollide = false
+                    pathPart.CFrame = target.CFrame
+                    pathPart.Size = Vector3.new(50, 50, 50)
+                    pathPart.Parent = workspace
+                    tween = game:GetService("TweenService"):Create(pathPart, TweenInfo.new(distance / 250, Enum.EasingStyle.Linear), {CFrame = targetCFrame * (function()
+                        if target ~= root then
+                            return CFrame.new(0, 30, 0)
+                        end
+                        return CFrame.new(0, 5, 0)
+                    end)()})
+                    connection = game:GetService("RunService").Heartbeat:Connect(function()
+                        if target and pathPart then
+                            target.CFrame = pathPart.CFrame * (function()
+                                if target ~= root then
+                                    return CFrame.new(0, 30, 0)
+                                end
+                                return CFrame.new(0, 5, 0)
+                            end)()
+                        end
+                    end)
+                    tween.Completed:Connect(function()
+                        if connection then connection:Disconnect() connection = nil end
+                        if pathPart then pathPart:Destroy() pathPart = nil end
+                        tween = nil
+                        isTweening = false
+                    end)
+                    tween:Play()
                 end
-
-                -- WorldsConfig + TeleportSea
+                local lastKenCall=tick()
+                KillMonster=(function(x)
+                    xpcall(function()
+                        if workspace.Enemies:FindFirstChild(x) then
+                            for _,v in next,workspace.Enemies:GetChildren() do
+                                local vh=v:FindFirstChild("Humanoid") local vhrp=v:FindFirstChild("HumanoidRootPart")
+                                if vh and vh.Health > 0 and vhrp and v.Name==x then
+                                    local dx,dy,dz=HumanoidRootPart.Position.X-vhrp.Position.X, HumanoidRootPart.Position.Y-vhrp.Position.Y, HumanoidRootPart.Position.Z-vhrp.Position.Z
+                                    local sqrMag=dx*dx+dy*dy+dz*dz
+                                    if sqrMag<=4900 then
+                                        FastAttack(x)
+                                        if tick()-lastKenCall>=10 then lastKenCall=tick() ReplicatedStorage.Remotes.CommE:FireServer("Ken",true) end
+                                        Tween(CFrame.new(vhrp.Position + (vhrp.CFrame.LookVector * 20) + Vector3.new(0, vhrp.Position.Y > 60 and -20 or 20, 0)))
+                                        EquipWeapon("Melee")
+                                        return
+                                    end
+                                    Tween(vhrp.CFrame) return
+                                end
+                            end
+                        end
+                        for _,v in next,ReplicatedStorage:GetChildren() do
+                            local vhrp=v:FindFirstChild("HumanoidRootPart")
+                            if v:IsA("Model") and vhrp and v.Name==x then Tween(vhrp.CFrame) return end
+                        end
+                    end,function(e) warn("Modules ERROR:",e) end)
+                end)
                 local WorldsConfig = {
                     ["1"] = "TravelMain",
                     ["2"] = "TravelDressrosa",
                     ["3"] = "TravelZou"
                 }
-                local function TeleportSea(sea, msg)
+                TeleportSea = function(sea, msg)
                     local s = tostring(sea)
                     local target = WorldsConfig[s]
                     if not target then return end
                     pcall(function() print(msg) end)
                     COMMF_:InvokeServer(target)
                 end
-
-                -- CheckMaterial
-                local function CheckMaterial(x)
-                    for _, v in pairs(COMMF_:InvokeServer("getInventory")) do
-                        if v.Type == "Material" and v.Name == x then return v.Count end
+                PressKeyEvent = newcclosure(function(k, d)
+                    game:GetService("VirtualInputManager"):SendKeyEvent(true, k, false, game) task.wait(d or 0)
+                    game:GetService("VirtualInputManager"):SendKeyEvent(false, k, false, game)
+                end)
+                local all = 0; FarmBeli = (function(x)
+                    if type(x) ~= "function" then warn("ddijt con me may") end
+                    local chests, c = {}, 0 local m = CollectionService:GetTagged("_ChestTagged")
+                    if all < getgenv().Settings["Max Chests"] and not CheckTool("Fist of Darkness") then
+                        for _, v in next, CollectionService:GetTagged("_ChestTagged") do if v and v.CanTouch then local dist = (v.Position - HumanoidRootPart.Position).Magnitude table.insert(chests, {obj = v, dist = dist}) end end
+                            table.sort(chests, function(a, b) return a.dist < b.dist end)
+                            if not CheckTool("Fist of Darkness") then 
+                                for i, t in next, chests do local v = t.obj
+                                    if v:IsA("BasePart") and v.Name:find("Chest") then
+                                        if v.CanTouch then
+                                            repeat task.wait()
+                                                print("Collect Chests | Collected: " .. c.."/"..all .. "/"..getgenv().Settings["Max Chests"].." Chests")
+                                                task.delay(2, function() v.CanTouch = false end)
+                                                if Character and Character.Humanoid and Character.Humanoid.Health > 0 then
+                                                    Character:SetPrimaryPartCFrame(v.CFrame)
+                                                end
+                                                PressKeyEvent("Space")
+                                            until not v.CanTouch or CheckTool("Fist of Darkness") c += 1 all += 1
+                                            if all >= getgenv().Settings["Max Chests"] then print("Stopped: Max Chests reached") HopServer(8) break
+                                            elseif CheckTool("Fist of Darkness") then print("Stopped: Fist of Darkness detected") break
+                                            elseif CheckMonster("Darkbeard") then print("Stopped: Darkbeard nearby") HopServer(8) break
+                                            end
+                                            print(c, getgenv().Settings["Reset After Collect Chests"])
+                                            if Character and c >= getgenv().Settings["Reset After Collect Chests"] and not CheckTool("Fist of Darkness") then
+                                                if Character and Character:FindFirstChildWhichIsA("Humanoid")then
+                                                    Character:FindFirstChildWhichIsA("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
+                                                    print("Collect Chests | Reset: Collected: "..tostring(getgenv().Settings["Reset After Collect Chests"]) .." Chests")
+                                                end
+                                                c = 0 task.wait(1)
+                                            end
+                                        end
+                                        if i % 250 == 0 then task.wait(0.1) end
+                                    end
+                                end
+                            else
+                                Tween(false)
+                                print("Stopped: Found Special Item")
+                            end
+                        if not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then HopServer(10) end 
                     end
-                    return 0
-                end
-
-                -- CheckInventory
-                local function CheckInventory(...)
-                    for _, v in pairs(COMMF_:InvokeServer("getInventory")) do
-                        for _, n in next, {...} do if v.Name == n then return true end end
-                    end
-                    return false
-                end
-
+                end)
                 local hasLeviHeart = CheckInventory("Leviathan Heart")
-
-                -- MAIN LOOP (y như gốc: CheckSea wrapper)
                 spawn(function()
                     while task.wait(0.2) do
                         xpcall(function()
-                            if CheckSea(2) then
-                                DoTween(false)
+                            if CheckSea(2) then Tween(false)
                                 if CheckMonster("Darkbeard") then
-                                    for _, container in next, {workspace.Enemies, RS} do
-                                        for _, v in next, container:GetChildren() do
+                                    for _, v2 in next, {workspace.Enemies, ReplicatedStorage} do
+                                        for _, v in next, v2:GetChildren() do
                                             if v.Name == "Darkbeard" then
-                                                repeat task.wait()
-                                                    print("Killing Darkbeard\nHealth: ".. math.floor(v.Humanoid.Health / v.Humanoid.MaxHealth * 100).."%")
-                                                    KillMonster(v.Name)
-                                                until not v or not v:FindFirstChild("Humanoid") or v.Humanoid.Health <= 0
-                                                DoTween(false)
+                                                repeat task.wait() print("Killing Darkbeard\nHealth: ".. math.floor(v.Humanoid.Health / v.Humanoid.MaxHealth * 100).."%") KillMonster(v.Name)
+                                                until not v or not v:FindFirstChild("Humanoid") or v.Humanoid.Health <= 0 Tween(false)
                                             end
                                         end
                                     end
-                                elseif CheckTool("Fist of Darkness") then
-                                    local Detection = workspace.Map.DarkbeardArena.Summoner.Detection
-                                    DoTween(false)
-                                    print("Spawn Darkbeard\nTweening")
-                                    DoTween(Detection.CFrame)
+                                elseif CheckTool("Fist of Darkness") then local Detection = workspace.Map.DarkbeardArena.Summoner.Detection
+                                    Tween(false) print("Spawn Darkbeard\nTweening") Tween(Detection.CFrame)
                                     if (HumanoidRootPart.Position - Detection.Position).Magnitude <= 200 then
                                         firetouchinterest(Detection, HumanoidRootPart, 0) task.wait(0.2)
                                         firetouchinterest(Detection, HumanoidRootPart, 1)
                                     end
                                 else
-                                    FarmBeli()
+                                    FarmBeli(function()
+                                        return all >= getgenv().Settings["Max Chests"] or CheckTool("Fist of Darkness") or CheckTool("Darkbeard")
+                                    end)
                                 end
-                            else
-                                TeleportSea(2, "Travel to sea 2 for farm Dark Fragments")
+                            else TeleportSea(2, "Travel to sea 2 for farm Dark Fragments")
                             end
                         end, function(err) warn(err) end)
                     end
                 end)
-
-                -- Auto Buso/Geppo/Soru
                 task.spawn(function()
                     while task.wait(4) do
                         xpcall(function()
-                            if not Character.Humanoid or Character.Humanoid.Health <= 0 then return end
+                            if not Character.Humanoid or Character.Humanoid.Health <= 0 then pcall(function() workspace.TweenGhost:Destroy() end) connection, tween, pathPart, isTweening = nil, nil, nil, false return end
                             if not Character:FindFirstChild("HasBuso") then COMMF_:InvokeServer("Buso") end
                             for _, v in next, {"Buso", "Geppo", "Soru"} do
                                 if not CollectionService:HasTag(Character, v) then
-                                    if LocalPlayer.Data.Beli.Value >= (v == "Geppo" and 1e4 or v == "Buso" and 2.5e4 or v == "Soru" and 1e5 or 0) then
-                                        COMMF_:InvokeServer("BuyHaki", v)
+                                    if LocalPlayer.Data.Beli.Value >= ((function(t)
+                                        return t == "Geppo" and 1e4 or t == "Buso" and 2.5e4 or t == "Soru" and 1e5 or 0
+                                    end)(v)) then print("Buy Abilies: ".. v) COMMF_:InvokeServer("BuyHaki", v)
                                     end
                                 end
                             end
-                        end, function() end)
+                        end, function(err) warn("LL: ".. err) end)
                     end
                 end)
-
-                -- Error handling
-                TeleportService.TeleportInitFailed:Connect(function(_, teleportResult, message)
-                    if teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
+                TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
+                    if teleportResult == Enum.TeleportResult.GameFull then inHopPP = false
+                    elseif teleportResult == Enum.TeleportResult.IsTeleporting and (message:find("previous teleport")) then
+                        StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
                         task.delay(10, function() game:Shutdown() end)
                     end
                 end)
-                GuiService.ErrorMessageChanged:Connect(function()
+                GuiService.ErrorMessageChanged:Connect(newcclosure(function()
                     if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
-                        while true do TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) task.wait(5) end
+                        while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
                     end
-                end)
+                end))
             end)
         end
 
