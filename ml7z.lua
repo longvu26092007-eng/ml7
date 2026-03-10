@@ -568,9 +568,9 @@ task.spawn(function()
             -- Load KaitunBoss farm Darkbeard (FILE GỐC NGUYÊN BẢN)
             task.spawn(function()
                 getgenv().Settings = {
-                    ["Max Chests"] = 50;
-                    ["Reset After Collect Chests"] = 10;
-                }
+                    ["Max Chests"] = 50; -- if you collected 50 chests, hop server
+                    ["Reset After Collect Chests"] = 10; -- if you collected 10 chests, it will reset for safe (anti kick)
+                };
                 PlaceId, JobId = game.PlaceId, game.JobId
                 RunService = game:GetService("RunService")
                 TweenService = game:GetService("TweenService")
@@ -600,8 +600,8 @@ task.spawn(function()
                     task.wait(10 - workspace.DistributedGameTime)
                 end
                 if not COMMF_ then repeat task.wait(1) until COMMF_ end
-                repeat task.wait(2) until Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChildWhichIsA("Humanoid") and Character:IsDescendantOf(workspace.Characters)
-                function CheckSea(v) return v == tonumber(workspace:GetAttribute("MAP"):match("%d+")) end
+                repeat task.wait(2) until Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChildWhichIsA("Humanoid") and Character:IsDescendantOf(workspace.Characters) -- workspace.CurrentCamera.CameraSubject, Players.CharacterAdded:Wait()
+                function CheckSea(v: number) return v == tonumber(workspace:GetAttribute("MAP"):match("%d+")) end
                 local remoteAttack, idremote
                 local seed = ReplicatedStorage.Modules.Net.seed:InvokeServer()
                 task.spawn((function() for _, v in next, ({ReplicatedStorage.Util, ReplicatedStorage.Common, ReplicatedStorage.Remotes, ReplicatedStorage.Assets, ReplicatedStorage.FX}) do
@@ -609,6 +609,7 @@ task.spawn(function()
                     end v.ChildAdded:Connect(function(n) if n:IsA("RemoteEvent") and n:GetAttribute("Id") then remoteAttack, idremote = n, n:GetAttribute("Id")
                     end end) end
                 end))
+                print("file")
                 CheckTool = (function(v)
                     for _, x in next, {LocalPlayer.Backpack, Character} do
                     for _, v2 in next, x:GetChildren() do if v2:IsA("Tool") and (v2.Name == v or v2.Name:find(v)) then return true end
@@ -649,7 +650,7 @@ task.spawn(function()
                 EquipWeapon = (function(v)
                     if not Character then return end
                     local tool = Character:FindFirstChildWhichIsA("Tool")
-                    if tool and (tool.ToolTip and tool.ToolTip == v) then return end
+                    if tool and (tool.ToolTip and tool.ToolTip == v) then return end --((tool:GetAttribute("WeaponType") or "") == v
                     for _, x in next, LocalPlayer.Backpack:GetChildren() do
                         if x:IsA("Tool") and x.ToolTip == v then
                             Humanoid:EquipTool(x)
@@ -660,7 +661,7 @@ task.spawn(function()
                 local lastCallFA = tick()
                 FastAttack = (function(x)
                     if not HumanoidRootPart or not Character:FindFirstChildWhichIsA("Humanoid") or Character.Humanoid.Health <= 0 or not Character:FindFirstChildWhichIsA("Tool") then return end
-                    local FAD = 0.01
+                    local FAD = 0.01 -- throttle
                     if FAD ~= 0 and tick() - lastCallFA <= FAD then return end
                     local t = {}
                     for _, e in next, workspace.Enemies:GetChildren() do
@@ -675,6 +676,7 @@ task.spawn(function()
                         if not h[1] then h[1] = part end
                         h[2][#h[2] + 1] = {v, part} last = v
                     end
+                    -- h[2][#h[2] + 1] = last
                     n:FindFirstChild("RE/RegisterAttack"):FireServer()
                     n:FindFirstChild("RE/RegisterHit"):FireServer(unpack(h))
                     cloneref(remoteAttack):FireServer(string.gsub("RE/RegisterHit", ".",function(c)
@@ -682,6 +684,7 @@ task.spawn(function()
                     end), bit32.bxor(idremote+909090, seed*2), unpack(h))
                     lastCallFA = tick()
                 end)
+                print('func')
                 function IfTableHaveIndex(j)
                     for _ in j do
                         return true
@@ -735,7 +738,7 @@ task.spawn(function()
                     end
                 end
                 local connection, tween, pathPart, isTweening = nil, nil, nil, false
-                function Tween(targetCFrame, target)
+                function Tween(targetCFrame: CFrame | boolean, target: CFrame) --old tween, lastest update: 5 months ago
                     pcall(function() Character.Humanoid.Sit = false end)
                     if not Character.Humanoid or Character.Humanoid.Health <= 0 then pcall(function() workspace.TweenGhost:Destroy() end) connection, tween, pathPart, isTweening = nil, nil, nil, false return end
                     if targetCFrame == false then
@@ -787,7 +790,7 @@ task.spawn(function()
                     end)
                     tween:Play()
                 end
-                local lastKenCall=tick()
+                local lastKenCall=tick() -- pray
                 KillMonster=(function(x)
                     xpcall(function()
                         if workspace.Enemies:FindFirstChild(x) then
@@ -922,6 +925,9 @@ task.spawn(function()
                         StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
                         task.delay(10, function() game:Shutdown() end)
                     end
+                    -- player.Name -- my LocalPlayer
+                    -- teleportResult -- Enum.TeleportResult
+                    -- message -- Request experience is full
                 end)
                 GuiService.ErrorMessageChanged:Connect(newcclosure(function()
                     if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
