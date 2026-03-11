@@ -141,7 +141,7 @@ end
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui", services.CoreGui)
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 260, 0, 160)
+MainFrame.Size = UDim2.new(0, 260, 0, 200)
 MainFrame.Position = UDim2.new(1, -270, 0.1, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(255, 200, 0)
@@ -161,6 +161,20 @@ StatusLabel.Text = "Team: " .. tostring(Player.Team) .. " ✅"
 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 StatusLabel.BackgroundTransparency = 1
 StatusLabel.TextWrapped = true
+StatusLabel.Font = Enum.Font.GothamSemibold
+StatusLabel.TextSize = 11
+
+-- Button bật script (ẩn mặc định, chỉ hiện cho Owner)
+local StartBtn = Instance.new("TextButton", MainFrame)
+StartBtn.Size = UDim2.new(1, -20, 0, 35)
+StartBtn.Position = UDim2.new(0, 10, 1, -45)
+StartBtn.Text = "🚀 BẬT LEVIATHAN NGAY"
+StartBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+StartBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+StartBtn.Font = Enum.Font.GothamBold
+StartBtn.TextSize = 13
+StartBtn.Visible = false
+Instance.new("UICorner", StartBtn).CornerRadius = UDim.new(0, 6)
 
 -- ==========================================
 -- LOGIC: BUY DRAGON TALON → WAIT 15S → SEA → DETECT
@@ -254,6 +268,9 @@ task.spawn(function()
         end
 
         if Player.Name:lower() ~= "nlvrblx" and Player.Name:lower() ~= "minkawai2007" then
+            -- ========================================
+            -- ACC KHÁCH: Quét owner → load script
+            -- ========================================
             local foundOwner = nil
             local timeLeft = 20
             
@@ -272,18 +289,22 @@ task.spawn(function()
                 StatusLabel.Text = "Owner Found: " .. foundOwner .. "\nExecuting Leviathan Script..."
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                 
-                getgenv().Key = "51e126ee832d3c4fff7b6178"
-getgenv().Config = {
-    ["Select Owner Boat Beast Hunter"] = foundOwner,
-    ["Auto light the torch"] = true,
-    ["No Frog"] = true,
-    ["Boost Fps"] = true,
-    ["Start Hunt Leviathan"] = true,
-    ["Select Skills Sword"] = {},
-    ["Select Skills Gun"] = {},
-    ["Select Skills Blox Fruit"] = {}
-}
-loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
+                -- task.spawn để không block/crash game
+                task.spawn(function()
+                    getgenv().Key = "51e126ee832d3c4fff7b6178"
+                    getgenv().Config = {
+                        ["Select Owner Boat Beast Hunter"] = foundOwner,
+                        ["Auto light the torch"] = true,
+                        ["No Frog"] = true,
+                        ["Boost Fps"] = true,
+                        ["Start Hunt Leviathan"] = true,
+                        ["Select Skills Sword"] = {},
+                        ["Select Skills Gun"] = {},
+                        ["Select Skills Blox Fruit"] = {}
+                    }
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
+                end)
+
                 -- ========================================
                 -- CHECK LEVIATHAN HEART (CHỈ ACC KHÁCH)
                 -- ========================================
@@ -338,19 +359,45 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitin
                 Player:Kick("Không tìm thấy chủ tàu sau 20s quét.")
             end
         else
-            StatusLabel.Text = "Main Account Mode Active.\nWaiting 120s before execute..."
+            -- ========================================
+            -- CHỦ THUYỀN: Countdown 190s + Button bật sớm
+            -- ========================================
+            local ownerScriptStarted = false
+
+            local function RunOwnerScript()
+                if ownerScriptStarted then return end
+                ownerScriptStarted = true
+                StartBtn.Visible = false
+                StatusLabel.Text = "Owner Mode: Loading Leviathan Script..."
+                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                warn("[Levi] Owner: Bật Leviathan Script!")
+
+                -- task.spawn để không block/crash game
+                task.spawn(function()
+                    getgenv().Key = "51e126ee832d3c4fff7b6178"
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
+                end)
+            end
+
+            -- Hiện button cho owner
+            StartBtn.Visible = true
+            StartBtn.MouseButton1Click:Connect(function()
+                RunOwnerScript()
+            end)
+
+            StatusLabel.Text = "Owner Mode Active.\nĐợi 190s hoặc bấm button bên dưới"
             StatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-            
+
+            -- Countdown 190s (giữ nguyên)
             for i = 190, 1, -1 do
-                StatusLabel.Text = string.format("Owner Mode: Waiting %d:%02d before execute...", math.floor(i/60), i%60)
+                if ownerScriptStarted then break end
+                StatusLabel.Text = string.format("Owner Mode: %d:%02d | Bấm button để bật sớm", math.floor(i/60), i%60)
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
                 task.wait(1)
             end
-            
-            StatusLabel.Text = "Owner Mode: Loading Leviathan Script..."
-            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-            getgenv().Key = "51e126ee832d3c4fff7b6178"
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-KaitunLevi.lua"))()
+
+            -- Hết countdown mà chưa bấm → auto bật
+            RunOwnerScript()
         end
     end
 end)
