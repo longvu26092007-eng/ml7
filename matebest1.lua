@@ -7,8 +7,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CommF = ReplicatedStorage:WaitForChild("Remotes", 30):WaitForChild("CommF_", 30)
 
 local MATERIALS = {
-    {"Leviathan Scales", 20},
-    {"Electric Wings", 6},
+    {"Leviathan Scale", 20},
+    {"Electric Wing", 6},
     {"Mutant Tooth", 2},
     {"Fool's Gold", 30},
     {"Shark Teeth", 6},
