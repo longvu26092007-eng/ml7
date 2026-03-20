@@ -11,7 +11,7 @@ local MATERIALS = {
     {"Electric Wing", 6},
     {"Mutant Tooth", 2},
     {"Fool's Gold", 30},
-    {"Shark Teeth", 6},
+    {"Shark Tooth", 6},
 }
 
 -- ==========================================
