@@ -310,7 +310,7 @@ task.spawn(function()
                 -- ========================================
                 task.spawn(function()
                     warn("[Levi] Bắt đầu check Leviathan Heart...")
-                    while task.wait(5) do
+                    while task.wait(1) do
                         local heartCount = 0
                         pcall(function()
                             local inv = services.CommF:InvokeServer("getInventory")
