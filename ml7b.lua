@@ -92,7 +92,6 @@ Line.Position = UDim2.new(0, 10, 0, 30)
 Line.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 Line.BorderSizePixel = 0
 
--- Status
 local StatusLabel = Instance.new("TextLabel", MainFrame)
 StatusLabel.Size = UDim2.new(1, -20, 0, 20)
 StatusLabel.Position = UDim2.new(0, 10, 0, 34)
@@ -103,7 +102,6 @@ StatusLabel.Font = Enum.Font.GothamSemibold
 StatusLabel.TextSize = 11
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- Melee
 local MeleeLabel = Instance.new("TextLabel", MainFrame)
 MeleeLabel.Size = UDim2.new(1, -20, 0, 16)
 MeleeLabel.Position = UDim2.new(0, 10, 0, 54)
@@ -114,7 +112,6 @@ MeleeLabel.Font = Enum.Font.GothamSemibold
 MeleeLabel.TextSize = 11
 MeleeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- Materials
 local MatFrame = Instance.new("Frame", MainFrame)
 MatFrame.Size = UDim2.new(1, -20, 0, 78)
 MatFrame.Position = UDim2.new(0, 10, 0, 73)
@@ -132,7 +129,7 @@ for _, data in ipairs(MaterialChecks) do
     local l = Instance.new("TextLabel", MatFrame)
     l.Size = UDim2.new(1, 0, 0, 16)
     l.BackgroundTransparency = 1
-    l.Text = "📦 " .. data[1] .. ": .../​" .. data[2]
+    l.Text = "📦 " .. data[1] .. ": .../" .. data[2]
     l.TextColor3 = Color3.fromRGB(200, 200, 200)
     l.Font = Enum.Font.Gotham
     l.TextSize = 11
@@ -140,7 +137,6 @@ for _, data in ipairs(MaterialChecks) do
     matLabels[data[1]] = l
 end
 
--- Fragment label
 local fragL = Instance.new("TextLabel", MatFrame)
 fragL.Size = UDim2.new(1, 0, 0, 16)
 fragL.BackgroundTransparency = 1
@@ -161,11 +157,8 @@ local function UpdateMaterials()
             label.TextColor3 = (count >= data[2]) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(200, 200, 200)
         end
     end
-    -- Update Fragment
     local fragCount = 0
-    pcall(function()
-        fragCount = Player.Data.Fragments.Value
-    end)
+    pcall(function() fragCount = Player.Data.Fragments.Value end)
     local fragLabel = matLabels["Fragment"]
     if fragLabel then
         fragLabel.Text = string.format("💎 Fragment: %d/5000", fragCount)
@@ -173,15 +166,11 @@ local function UpdateMaterials()
     end
 end
 
--- Update lần đầu + auto mỗi 10s
 UpdateMaterials()
 task.spawn(function()
-    while task.wait(10) do
-        UpdateMaterials()
-    end
+    while task.wait(10) do UpdateMaterials() end
 end)
 
--- LeftAlt toggle
 services.UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.LeftAlt then
         MainFrame.Visible = not MainFrame.Visible
@@ -193,8 +182,7 @@ StatusLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
 print("[VFAndSA P1] ✅ Loaded | LeftAlt ẩn/hiện")
 
 -- ==========================================
--- CHECK FRAGMENT (trước Phần 0)
--- Dưới 5000 → farm Katakuri | Trên 5000 → tiếp Phần 0
+-- CHECK FRAGMENT
 -- ==========================================
 local fragmentOk = false
 
@@ -216,15 +204,11 @@ task.spawn(function()
         StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
         print("[Fragment] Chưa đủ! Farm Katakuri...")
 
-        -- Giám sát Fragment mỗi 15s → đủ 5000 → kick
         task.spawn(function()
             while task.wait(15) do
                 local currentFrag = 0
-                pcall(function()
-                    currentFrag = Player.Data.Fragments.Value
-                end)
+                pcall(function() currentFrag = Player.Data.Fragments.Value end)
                 StatusLabel.Text = "Fragment: " .. currentFrag .. "/5000 | Farming..."
-
                 if currentFrag >= 5000 then
                     StatusLabel.Text = "Fragment: 5000 ✅ KICK!"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
@@ -236,7 +220,6 @@ task.spawn(function()
             end
         end)
 
-        -- Load BananaHub farm Katakuri
         task.spawn(function()
             getgenv().NewUI = true
             getgenv().Config = {
@@ -247,11 +230,10 @@ task.spawn(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
         end)
 
-        return -- Dừng luồng, không vào Phần 0
+        return
     end
 end)
 
--- Đợi Fragment check xong trước khi vào Phần 0
 repeat task.wait(1) until fragmentOk
 
 -- ==========================================
@@ -266,13 +248,11 @@ task.spawn(function()
 
     if ok then
         if type(result) == "string" and result:lower():find("bring me") then
-            -- Chưa active - server yêu cầu materials
             saActive = false
             StatusLabel.Text = "SA: ❌ Chưa active"
             StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
             print("[P0] Sanguine Art chưa active. Server:", result)
         else
-            -- Đã active (trả về number hoặc không phải "bring me")
             saActive = true
             StatusLabel.Text = "SA: ✅ Đã active! (" .. tostring(result) .. ")"
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
@@ -285,8 +265,6 @@ task.spawn(function()
     end
 end)
 
--- Thêm logic mới ở đây
-
 -- ==========================================
 -- PHẦN 0.5: CHECK MELEE ĐANG EQUIP
 -- ==========================================
@@ -295,25 +273,16 @@ local currentMelee = "None"
 local function GetEquippedMelee()
     local char = Player.Character
     local bp = Player:FindFirstChild("Backpack")
-
-    -- Check trong Character (đang cầm)
     if char then
         for _, tool in ipairs(char:GetChildren()) do
-            if tool:IsA("Tool") and tool.ToolTip == "Melee" then
-                return tool.Name, true -- tên, đang cầm
-            end
+            if tool:IsA("Tool") and tool.ToolTip == "Melee" then return tool.Name, true end
         end
     end
-
-    -- Check trong Backpack (có nhưng chưa cầm)
     if bp then
         for _, tool in ipairs(bp:GetChildren()) do
-            if tool:IsA("Tool") and tool.ToolTip == "Melee" then
-                return tool.Name, false -- tên, chưa cầm
-            end
+            if tool:IsA("Tool") and tool.ToolTip == "Melee" then return tool.Name, false end
         end
     end
-
     return "None", false
 end
 
@@ -322,7 +291,6 @@ task.spawn(function()
     while true do
         local meleeName, isHolding = GetEquippedMelee()
         currentMelee = meleeName
-
         if meleeName ~= "None" then
             local holdText = isHolding and "cầm" or "BP"
             MeleeLabel.Text = "🥊 Melee: " .. meleeName .. " (" .. holdText .. ")"
@@ -331,70 +299,51 @@ task.spawn(function()
             MeleeLabel.Text = "🥊 Melee: Không có"
             MeleeLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         end
-
         task.wait(5)
     end
 end)
 
 -- ==========================================
 -- PHẦN 1: AUTOMATION
--- A. Check SA active → check melee → ghi file hoặc chạy getSA
 -- ==========================================
 task.spawn(function()
-    -- Đợi P0 check SA xong
     repeat task.wait(1) until StatusLabel.Text:find("SA:") and not StatusLabel.Text:find("Checking")
 
     if not saActive then
-        -- ==========================================
-        -- PHẦN 1B: SA CHƯA ACTIVE → CHECK NGUYÊN LIỆU
-        -- B1. Check Dark Fragment
-        -- ==========================================
         print("[P1B] SA chưa active → Check nguyên liệu...")
 
         local inv = GetInventory()
         local dfCount = GetMaterialCount("Dark Fragment", inv)
 
         if dfCount >= 2 then
-            -- Đủ DF → phần sau (sẽ thêm)
             StatusLabel.Text = "P1B: DF " .. dfCount .. "/2 ✅ → Tiếp..."
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
             print("[P1B] Dark Fragment " .. dfCount .. "/2 → Đủ! Chuyển bước tiếp...")
 
-            -- ==========================================
-            -- PHẦN 1C: DF ĐỦ → CHECK VAMPIRE FANG
-            -- ==========================================
             local vfCount = GetMaterialCount("Vampire Fang", inv)
 
             if vfCount >= 20 then
-                -- Đủ VF → tiếp P1D
                 StatusLabel.Text = "P1C: VF " .. vfCount .. "/20 ✅ → P1D..."
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                 print("[P1C] Vampire Fang " .. vfCount .. "/20 → Đủ! Chuyển P1D...")
 
-                -- ==========================================
-                -- PHẦN 1D: VF ĐỦ → CHECK DEMONIC WISP
-                -- ==========================================
                 local dwCount = GetMaterialCount("Demonic Wisp", inv)
 
                 if dwCount >= 20 then
-                    -- Đủ cả 3 materials → check SA lại (vì rejoin sẽ check từ đầu)
                     StatusLabel.Text = "P1D: DW " .. dwCount .. "/20 ✅ Đủ tất cả!"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                     print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Đủ tất cả materials!")
                 else
-                    -- Chưa đủ DW → farm Demonic Wisp + Vampire Fang
                     StatusLabel.Text = "P1D: DW " .. dwCount .. "/20 → Farm..."
                     StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
                     print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Farm!")
 
-                    -- Chạy Ultimax Radar trước 10s
                     task.spawn(function()
                         loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
                     end)
 
                     task.wait(10)
 
-                    -- Load BananaHub farm Demonic Wisp
                     task.spawn(function()
                         getgenv().NewUI = true
                         getgenv().Config = {
@@ -406,7 +355,6 @@ task.spawn(function()
                         loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
                     end)
 
-                    -- Giám sát DW + SA Active + Melee (tối ưu: 1 lần gọi inventory)
                     task.spawn(function()
                         while true do
                             local checkInv = GetInventory()
@@ -415,17 +363,12 @@ task.spawn(function()
                             local currentDF = GetMaterialCount("Dark Fragment", checkInv)
                             StatusLabel.Text = string.format("P1D: DW %d/20 | VF %d/20 | DF %d/2", currentDW, currentVF, currentDF)
 
-                            -- Check SA Active (mỗi lần loop)
                             local saOk, saResult = pcall(function()
                                 return services.CommF:InvokeServer("BuySanguineArt", true)
                             end)
-                            if saOk and type(saResult) ~= "string" then
-                                saActive = true
-                            elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
-                                saActive = true
-                            end
+                            if saOk and type(saResult) ~= "string" then saActive = true
+                            elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
 
-                            -- Nếu SA active → kick ngay để rejoin vào P1A
                             if saActive then
                                 StatusLabel.Text = "P1D: SA Active! KICK!"
                                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
@@ -435,7 +378,6 @@ task.spawn(function()
                                 break
                             end
 
-                            -- Check Melee
                             local meleeName = GetEquippedMelee()
                             currentMelee = meleeName
                             if meleeName ~= "None" then
@@ -449,34 +391,27 @@ task.spawn(function()
                 end
 
             else
-                -- Chưa đủ VF → farm Vampire Fang
                 StatusLabel.Text = "P1C: VF " .. vfCount .. "/20 → Farm..."
                 StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
                 print("[P1C] Vampire Fang " .. vfCount .. "/20 → Farm!")
 
-                -- Chạy Ultimax Radar trước 10s
                 task.spawn(function()
                     loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
                 end)
 
                 task.wait(10)
 
-                -- Giám sát VF mỗi 10s → đủ 20/20 → kick | SA active → kick
                 task.spawn(function()
                     while task.wait(10) do
                         local checkInv = GetInventory()
                         local currentVF = GetMaterialCount("Vampire Fang", checkInv)
                         StatusLabel.Text = "P1C: VF " .. currentVF .. "/20 | Farming..."
 
-                        -- Check SA Active
                         local saOk, saResult = pcall(function()
                             return services.CommF:InvokeServer("BuySanguineArt", true)
                         end)
-                        if saOk and type(saResult) ~= "string" then
-                            saActive = true
-                        elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
-                            saActive = true
-                        end
+                        if saOk and type(saResult) ~= "string" then saActive = true
+                        elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
 
                         if saActive then
                             StatusLabel.Text = "P1C: SA Active! KICK!"
@@ -498,7 +433,6 @@ task.spawn(function()
                     end
                 end)
 
-                -- Load BananaHub farm Vampire Fang
                 task.spawn(function()
                     getgenv().NewUI = true
                     getgenv().Config = {
@@ -512,12 +446,13 @@ task.spawn(function()
             end
 
         else
-            -- Chưa đủ DF → farm Darkbeard
+            -- ==========================================
+            -- PHẦN 1B: CHƯA ĐỦ DF → FARM DARKBEARD
+            -- ==========================================
             StatusLabel.Text = "P1B: DF " .. dfCount .. "/2 → Farm..."
             StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
             print("[P1B] Dark Fragment " .. dfCount .. "/2 → Chưa đủ, bật farm Darkbeard!")
 
-            -- Check Sea 2
             local PlaceId = tostring(game.PlaceId)
             local SEA_2 = {["4442272183"] = true, ["79091703265657"] = true}
 
@@ -527,22 +462,17 @@ task.spawn(function()
                 return
             end
 
-            -- Giám sát DF mỗi 10s → đủ 2/2 → kick | SA active → kick
             task.spawn(function()
                 while task.wait(10) do
                     local checkInv = GetInventory()
                     local currentDF = GetMaterialCount("Dark Fragment", checkInv)
                     StatusLabel.Text = "P1B: DF " .. currentDF .. "/2 | Farming..."
 
-                    -- Check SA Active
                     local saOk, saResult = pcall(function()
                         return services.CommF:InvokeServer("BuySanguineArt", true)
                     end)
-                    if saOk and type(saResult) ~= "string" then
-                        saActive = true
-                    elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then
-                        saActive = true
-                    end
+                    if saOk and type(saResult) ~= "string" then saActive = true
+                    elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
 
                     if saActive then
                         StatusLabel.Text = "P1B: SA Active! KICK!"
@@ -557,7 +487,6 @@ task.spawn(function()
                         StatusLabel.Text = "P1B: DF 2/2 ✅ KICK!"
                         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                         print("[P1B] Dark Fragment đủ 2/2! Kick rejoin...")
-
                         task.wait(2)
                         Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 2/2 Dark Fragment!\nRejoin để tiếp tục.")
                         break
@@ -565,11 +494,11 @@ task.spawn(function()
                 end
             end)
 
-            -- Load KaitunBoss farm Darkbeard (FILE GỐC NGUYÊN BẢN)
+            -- Load KaitunBoss farm Darkbeard
             task.spawn(function()
                 getgenv().Settings = {
-                    ["Max Chests"] = 25; -- if you collected 50 chests, hop server
-                    ["Reset After Collect Chests"] = 10; -- if you collected 10 chests, it will reset for safe (anti kick)
+                    ["Max Chests"] = 25;
+                    ["Reset After Collect Chests"] = 10;
                 };
                 PlaceId, JobId = game.PlaceId, game.JobId
                 RunService = game:GetService("RunService")
@@ -600,7 +529,7 @@ task.spawn(function()
                     task.wait(10 - workspace.DistributedGameTime)
                 end
                 if not COMMF_ then repeat task.wait(1) until COMMF_ end
-                repeat task.wait(2) until Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChildWhichIsA("Humanoid") and Character:IsDescendantOf(workspace.Characters) -- workspace.CurrentCamera.CameraSubject, Players.CharacterAdded:Wait()
+                repeat task.wait(2) until Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChildWhichIsA("Humanoid") and Character:IsDescendantOf(workspace.Characters)
                 function CheckSea(v: number) return v == tonumber(workspace:GetAttribute("MAP"):match("%d+")) end
                 local remoteAttack, idremote
                 local seed = ReplicatedStorage.Modules.Net.seed:InvokeServer()
@@ -638,9 +567,7 @@ task.spawn(function()
                             local r = m:FindFirstChild("HumanoidRootPart")
                             if m:IsA("Model") and h and r and h.Health > 0 and m.Name ~= "Blank Buddy" then
                                 for i = 1, #args do local n = args[i]
-                                    if m.Name == n or m.Name:lower():find(n:lower()) then
-                                        return m
-                                    end
+                                    if m.Name == n or m.Name:lower():find(n:lower()) then return m end
                                 end
                             end
                         end
@@ -650,18 +577,15 @@ task.spawn(function()
                 EquipWeapon = (function(v)
                     if not Character then return end
                     local tool = Character:FindFirstChildWhichIsA("Tool")
-                    if tool and (tool.ToolTip and tool.ToolTip == v) then return end --((tool:GetAttribute("WeaponType") or "") == v
+                    if tool and (tool.ToolTip and tool.ToolTip == v) then return end
                     for _, x in next, LocalPlayer.Backpack:GetChildren() do
-                        if x:IsA("Tool") and x.ToolTip == v then
-                            Humanoid:EquipTool(x)
-                            return
-                        end
+                        if x:IsA("Tool") and x.ToolTip == v then Humanoid:EquipTool(x) return end
                     end
                 end)
                 local lastCallFA = tick()
                 FastAttack = (function(x)
                     if not HumanoidRootPart or not Character:FindFirstChildWhichIsA("Humanoid") or Character.Humanoid.Health <= 0 or not Character:FindFirstChildWhichIsA("Tool") then return end
-                    local FAD = 0.01 -- throttle
+                    local FAD = 0.01
                     if FAD ~= 0 and tick() - lastCallFA <= FAD then return end
                     local t = {}
                     for _, e in next, workspace.Enemies:GetChildren() do
@@ -676,7 +600,6 @@ task.spawn(function()
                         if not h[1] then h[1] = part end
                         h[2][#h[2] + 1] = {v, part} last = v
                     end
-                    -- h[2][#h[2] + 1] = last
                     n:FindFirstChild("RE/RegisterAttack"):FireServer()
                     n:FindFirstChild("RE/RegisterHit"):FireServer(unpack(h))
                     cloneref(remoteAttack):FireServer(string.gsub("RE/RegisterHit", ".",function(c)
@@ -685,11 +608,14 @@ task.spawn(function()
                     lastCallFA = tick()
                 end)
                 print('func')
+
+                -- ══════════════════════════════════════════
+                -- HOP SERVER V17.3 (THAY THẾ BẢN CŨ)
+                -- ══════════════════════════════════════════
                 function IfTableHaveIndex(j)
-                    for _ in j do
-                        return true
-                    end
+                    for _ in j do return true end
                 end
+
                 local LastServersDataPulled, CachedServers
                 function GetServers()
                     if LastServersDataPulled then
@@ -697,56 +623,101 @@ task.spawn(function()
                             return CachedServers
                         end
                     end
-                    for i = 1, 100, 1 do
-                        local data = game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser"):InvokeServer(i)
-                        if IfTableHaveIndex(data) then
+                    for i = 1, 100 do
+                        local ok, data = pcall(function()
+                            return ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer(i)
+                        end)
+                        if ok and data and IfTableHaveIndex(data) then
                             LastServersDataPulled = os.time()
                             CachedServers = data
                             return data
                         end
                     end
+                    warn("[HOP] Không lấy được danh sách server!")
+                    return nil
                 end
+
                 HopServer = function(Reason, MaxPlayers, ForcedRegion)
+                    MaxPlayers = MaxPlayers or 4
+
                     local Servers = GetServers()
-                    local ArrayServers = {}
-                    for i, v in Servers do
-                        table.insert(ArrayServers, {
-                            JobId = i,
-                            Players = v.Count,
-                            LastUpdate = v.__LastUpdate,
-                            Region = v.Region
-                        })
+                    if not Servers then
+                        warn("[HOP] Không có dữ liệu server, hop random...")
+                        TeleportService:Teleport(PlaceId, LocalPlayer)
+                        return
                     end
-                    print(#ArrayServers, 'servers received')
-                    local ServerData
-                    for i = 1, #ArrayServers do
-                        while task.wait() do
-                            local Index = math.random(1, #ArrayServers)
-                            ServerData = ArrayServers[Index]
-                            if ServerData then
-                                if not MaxPlayers or ServerData.Players < 5 then
-                                    if not ForcedRegion or ServerData.Regoin == ForcedRegion then
-                                        print("Found Server:", ServerData.JobId, 'Player Count:', ServerData.Players, "Region:",
-                                            ServerData.Region)
-                                        break
-                                    end
-                                end
+
+                    -- Chuyển dictionary → mảng, bỏ server hiện tại
+                    local ArrayServers = {}
+                    for id, v in Servers do
+                        if id ~= JobId then
+                            table.insert(ArrayServers, {
+                                JobId      = id,
+                                Players    = v.Count,
+                                LastUpdate = v.__LastUpdate,
+                                Region     = v.Region  -- ĐÃ SỬA: Regoin → Region
+                            })
+                        end
+                    end
+
+                    print("[HOP] Nhận được", #ArrayServers, "servers")
+
+                    if #ArrayServers == 0 then
+                        warn("[HOP] Danh sách rỗng, hop random...")
+                        TeleportService:Teleport(PlaceId, LocalPlayer)
+                        return
+                    end
+
+                    -- Lọc theo MaxPlayers + Region
+                    local FilteredServers = {}
+                    for _, server in ipairs(ArrayServers) do
+                        local passPlayers = not MaxPlayers or server.Players < MaxPlayers
+                        local passRegion  = not ForcedRegion or server.Region == ForcedRegion
+                        if passPlayers and passRegion then
+                            table.insert(FilteredServers, server)
+                        end
+                    end
+
+                    print("[HOP] Sau lọc:", #FilteredServers, "servers phù hợp")
+
+                    -- Fallback 1: bỏ filter region
+                    if #FilteredServers == 0 then
+                        warn("[HOP] Không khớp filter, thử bỏ region...")
+                        for _, server in ipairs(ArrayServers) do
+                            if not MaxPlayers or server.Players < MaxPlayers then
+                                table.insert(FilteredServers, server)
                             end
                         end
-                        print('Teleporting to', ServerData.JobId, '...')
-                        game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser"):InvokeServer('teleport', ServerData.JobId)
                     end
+
+                    -- Fallback 2: dùng toàn bộ
+                    if #FilteredServers == 0 then
+                        warn("[HOP] Dùng toàn bộ danh sách...")
+                        FilteredServers = ArrayServers
+                    end
+
+                    -- Chọn random
+                    local ServerData = FilteredServers[math.random(1, #FilteredServers)]
+
+                    print("[HOP] Đã chọn:", ServerData.JobId,
+                        "| Players:", ServerData.Players,
+                        "| Region:", ServerData.Region)
+
+                    if Reason then print("[HOP] Lý do:", Reason) end
+
+                    ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer('teleport', ServerData.JobId)
                 end
+                -- ══════════════════════════════════════════
+
                 local connection, tween, pathPart, isTweening = nil, nil, nil, false
-                function Tween(targetCFrame: CFrame | boolean, target: CFrame) --old tween, lastest update: 5 months ago
+                function Tween(targetCFrame: CFrame | boolean, target: CFrame)
                     pcall(function() Character.Humanoid.Sit = false end)
                     if not Character.Humanoid or Character.Humanoid.Health <= 0 then pcall(function() workspace.TweenGhost:Destroy() end) connection, tween, pathPart, isTweening = nil, nil, nil, false return end
                     if targetCFrame == false then
                         if tween then pcall(function() tween:Cancel() end) tween = nil end
                         if connection then connection:Disconnect() connection = nil end
                         if pathPart then pathPart:Destroy() pathPart = nil end
-                        isTweening = false
-                        return
+                        isTweening = false return
                     end
                     if isTweening or not targetCFrame then return end
                     isTweening = true
@@ -767,60 +738,50 @@ task.spawn(function()
                     pathPart.Size = Vector3.new(50, 50, 50)
                     pathPart.Parent = workspace
                     tween = game:GetService("TweenService"):Create(pathPart, TweenInfo.new(distance / 250, Enum.EasingStyle.Linear), {CFrame = targetCFrame * (function()
-                        if target ~= root then
-                            return CFrame.new(0, 30, 0)
-                        end
-                        return CFrame.new(0, 5, 0)
+                        if target ~= root then return CFrame.new(0, 30, 0) end return CFrame.new(0, 5, 0)
                     end)()})
                     connection = game:GetService("RunService").Heartbeat:Connect(function()
                         if target and pathPart then
                             target.CFrame = pathPart.CFrame * (function()
-                                if target ~= root then
-                                    return CFrame.new(0, 30, 0)
-                                end
-                                return CFrame.new(0, 5, 0)
+                                if target ~= root then return CFrame.new(0, 30, 0) end return CFrame.new(0, 5, 0)
                             end)()
                         end
                     end)
                     tween.Completed:Connect(function()
                         if connection then connection:Disconnect() connection = nil end
                         if pathPart then pathPart:Destroy() pathPart = nil end
-                        tween = nil
-                        isTweening = false
+                        tween = nil isTweening = false
                     end)
                     tween:Play()
                 end
-                local lastKenCall=tick() -- pray
-                KillMonster=(function(x)
+
+                local lastKenCall = tick()
+                KillMonster = (function(x)
                     xpcall(function()
                         if workspace.Enemies:FindFirstChild(x) then
-                            for _,v in next,workspace.Enemies:GetChildren() do
-                                local vh=v:FindFirstChild("Humanoid") local vhrp=v:FindFirstChild("HumanoidRootPart")
-                                if vh and vh.Health > 0 and vhrp and v.Name==x then
-                                    local dx,dy,dz=HumanoidRootPart.Position.X-vhrp.Position.X, HumanoidRootPart.Position.Y-vhrp.Position.Y, HumanoidRootPart.Position.Z-vhrp.Position.Z
-                                    local sqrMag=dx*dx+dy*dy+dz*dz
-                                    if sqrMag<=4900 then
+                            for _, v in next, workspace.Enemies:GetChildren() do
+                                local vh = v:FindFirstChild("Humanoid") local vhrp = v:FindFirstChild("HumanoidRootPart")
+                                if vh and vh.Health > 0 and vhrp and v.Name == x then
+                                    local dx, dy, dz = HumanoidRootPart.Position.X - vhrp.Position.X, HumanoidRootPart.Position.Y - vhrp.Position.Y, HumanoidRootPart.Position.Z - vhrp.Position.Z
+                                    local sqrMag = dx*dx + dy*dy + dz*dz
+                                    if sqrMag <= 4900 then
                                         FastAttack(x)
-                                        if tick()-lastKenCall>=10 then lastKenCall=tick() ReplicatedStorage.Remotes.CommE:FireServer("Ken",true) end
+                                        if tick() - lastKenCall >= 10 then lastKenCall = tick() ReplicatedStorage.Remotes.CommE:FireServer("Ken", true) end
                                         Tween(CFrame.new(vhrp.Position + (vhrp.CFrame.LookVector * 20) + Vector3.new(0, vhrp.Position.Y > 60 and -20 or 20, 0)))
-                                        EquipWeapon("Melee")
-                                        return
+                                        EquipWeapon("Melee") return
                                     end
                                     Tween(vhrp.CFrame) return
                                 end
                             end
                         end
-                        for _,v in next,ReplicatedStorage:GetChildren() do
-                            local vhrp=v:FindFirstChild("HumanoidRootPart")
-                            if v:IsA("Model") and vhrp and v.Name==x then Tween(vhrp.CFrame) return end
+                        for _, v in next, ReplicatedStorage:GetChildren() do
+                            local vhrp = v:FindFirstChild("HumanoidRootPart")
+                            if v:IsA("Model") and vhrp and v.Name == x then Tween(vhrp.CFrame) return end
                         end
-                    end,function(e) warn("Modules ERROR:",e) end)
+                    end, function(e) warn("Modules ERROR:", e) end)
                 end)
-                local WorldsConfig = {
-                    ["1"] = "TravelMain",
-                    ["2"] = "TravelDressrosa",
-                    ["3"] = "TravelZou"
-                }
+
+                local WorldsConfig = {["1"] = "TravelMain", ["2"] = "TravelDressrosa", ["3"] = "TravelZou"}
                 TeleportSea = function(sea, msg)
                     local s = tostring(sea)
                     local target = WorldsConfig[s]
@@ -828,51 +789,51 @@ task.spawn(function()
                     pcall(function() print(msg) end)
                     COMMF_:InvokeServer(target)
                 end
+
                 PressKeyEvent = newcclosure(function(k, d)
                     game:GetService("VirtualInputManager"):SendKeyEvent(true, k, false, game) task.wait(d or 0)
                     game:GetService("VirtualInputManager"):SendKeyEvent(false, k, false, game)
                 end)
+
                 local all = 0; FarmBeli = (function(x)
                     if type(x) ~= "function" then warn("ddijt con me may") end
-                    local chests, c = {}, 0 local m = CollectionService:GetTagged("_ChestTagged")
+                    local chests, c = {}, 0
                     if all < getgenv().Settings["Max Chests"] and not CheckTool("Fist of Darkness") then
                         for _, v in next, CollectionService:GetTagged("_ChestTagged") do if v and v.CanTouch then local dist = (v.Position - HumanoidRootPart.Position).Magnitude table.insert(chests, {obj = v, dist = dist}) end end
-                            table.sort(chests, function(a, b) return a.dist < b.dist end)
-                            if not CheckTool("Fist of Darkness") then 
-                                for i, t in next, chests do local v = t.obj
-                                    if v:IsA("BasePart") and v.Name:find("Chest") then
-                                        if v.CanTouch then
-                                            repeat task.wait()
-                                                print("Collect Chests | Collected: " .. c.."/"..all .. "/"..getgenv().Settings["Max Chests"].." Chests")
-                                                task.delay(2, function() v.CanTouch = false end)
-                                                if Character and Character.Humanoid and Character.Humanoid.Health > 0 then
-                                                    Character:SetPrimaryPartCFrame(v.CFrame)
-                                                end
-                                                PressKeyEvent("Space")
-                                            until not v.CanTouch or CheckTool("Fist of Darkness") c += 1 all += 1
-                                            if all >= getgenv().Settings["Max Chests"] then print("Stopped: Max Chests reached") HopServer(8) break
-                                            elseif CheckTool("Fist of Darkness") then print("Stopped: Fist of Darkness detected") break
-                                            elseif CheckMonster("Darkbeard") then print("Stopped: Darkbeard nearby") HopServer(8) break
-                                            end
-                                            print(c, getgenv().Settings["Reset After Collect Chests"])
-                                            if Character and c >= getgenv().Settings["Reset After Collect Chests"] and not CheckTool("Fist of Darkness") then
-                                                if Character and Character:FindFirstChildWhichIsA("Humanoid")then
-                                                    Character:FindFirstChildWhichIsA("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
-                                                    print("Collect Chests | Reset: Collected: "..tostring(getgenv().Settings["Reset After Collect Chests"]) .." Chests")
-                                                end
-                                                c = 0 task.wait(1)
-                                            end
+                        table.sort(chests, function(a, b) return a.dist < b.dist end)
+                        if not CheckTool("Fist of Darkness") then
+                            for i, t in next, chests do local v = t.obj
+                                if v:IsA("BasePart") and v.Name:find("Chest") then
+                                    if v.CanTouch then
+                                        repeat task.wait()
+                                            print("Collect Chests | Collected: " .. c .. "/" .. all .. "/" .. getgenv().Settings["Max Chests"] .. " Chests")
+                                            task.delay(2, function() v.CanTouch = false end)
+                                            if Character and Character.Humanoid and Character.Humanoid.Health > 0 then Character:SetPrimaryPartCFrame(v.CFrame) end
+                                            PressKeyEvent("Space")
+                                        until not v.CanTouch or CheckTool("Fist of Darkness") c += 1 all += 1
+                                        if all >= getgenv().Settings["Max Chests"] then print("Stopped: Max Chests reached") HopServer("Max Chests") break
+                                        elseif CheckTool("Fist of Darkness") then print("Stopped: Fist of Darkness detected") break
+                                        elseif CheckMonster("Darkbeard") then print("Stopped: Darkbeard nearby") HopServer("Darkbeard nearby") break
                                         end
-                                        if i % 250 == 0 then task.wait(0.1) end
+                                        if Character and c >= getgenv().Settings["Reset After Collect Chests"] and not CheckTool("Fist of Darkness") then
+                                            if Character and Character:FindFirstChildWhichIsA("Humanoid") then
+                                                Character:FindFirstChildWhichIsA("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
+                                                print("Collect Chests | Reset: Collected: " .. tostring(getgenv().Settings["Reset After Collect Chests"]) .. " Chests")
+                                            end
+                                            c = 0 task.wait(1)
+                                        end
                                     end
+                                    if i % 250 == 0 then task.wait(0.1) end
                                 end
-                            else
-                                Tween(false)
-                                print("Stopped: Found Special Item")
                             end
-                        if not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then HopServer(10) end 
+                        else
+                            Tween(false)
+                            print("Stopped: Found Special Item")
+                        end
+                        if not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then HopServer("No target found") end
                     end
                 end)
+
                 local hasLeviHeart = CheckInventory("Leviathan Heart")
                 spawn(function()
                     while task.wait(0.2) do
@@ -882,12 +843,13 @@ task.spawn(function()
                                     for _, v2 in next, {workspace.Enemies, ReplicatedStorage} do
                                         for _, v in next, v2:GetChildren() do
                                             if v.Name == "Darkbeard" then
-                                                repeat task.wait() print("Killing Darkbeard\nHealth: ".. math.floor(v.Humanoid.Health / v.Humanoid.MaxHealth * 100).."%") KillMonster(v.Name)
+                                                repeat task.wait() print("Killing Darkbeard\nHealth: " .. math.floor(v.Humanoid.Health / v.Humanoid.MaxHealth * 100) .. "%") KillMonster(v.Name)
                                                 until not v or not v:FindFirstChild("Humanoid") or v.Humanoid.Health <= 0 Tween(false)
                                             end
                                         end
                                     end
-                                elseif CheckTool("Fist of Darkness") then local Detection = workspace.Map.DarkbeardArena.Summoner.Detection
+                                elseif CheckTool("Fist of Darkness") then
+                                    local Detection = workspace.Map.DarkbeardArena.Summoner.Detection
                                     Tween(false) print("Spawn Darkbeard\nTweening") Tween(Detection.CFrame)
                                     if (HumanoidRootPart.Position - Detection.Position).Magnitude <= 200 then
                                         firetouchinterest(Detection, HumanoidRootPart, 0) task.wait(0.2)
@@ -903,6 +865,7 @@ task.spawn(function()
                         end, function(err) warn(err) end)
                     end
                 end)
+
                 task.spawn(function()
                     while task.wait(4) do
                         xpcall(function()
@@ -912,23 +875,27 @@ task.spawn(function()
                                 if not CollectionService:HasTag(Character, v) then
                                     if LocalPlayer.Data.Beli.Value >= ((function(t)
                                         return t == "Geppo" and 1e4 or t == "Buso" and 2.5e4 or t == "Soru" and 1e5 or 0
-                                    end)(v)) then print("Buy Abilies: ".. v) COMMF_:InvokeServer("BuyHaki", v)
-                                    end
+                                    end)(v)) then print("Buy Abilies: " .. v) COMMF_:InvokeServer("BuyHaki", v) end
                                 end
                             end
-                        end, function(err) warn("LL: ".. err) end)
+                        end, function(err) warn("LL: " .. err) end)
                     end
                 end)
+
+                -- Error handling V17.2
                 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
-                    if teleportResult == Enum.TeleportResult.GameFull then inHopPP = false
+                    if teleportResult == Enum.TeleportResult.GameFull then
+                        warn("[HOP] Server đầy, thử lại...")
+                        task.delay(2, function() HopServer("Retry - Server đầy") end)
                     elseif teleportResult == Enum.TeleportResult.IsTeleporting and (message:find("previous teleport")) then
                         StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
                         task.delay(10, function() game:Shutdown() end)
+                    else
+                        warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
+                        task.delay(3, function() HopServer("Retry - Teleport fail") end)
                     end
-                    -- player.Name -- my LocalPlayer
-                    -- teleportResult -- Enum.TeleportResult
-                    -- message -- Request experience is full
                 end)
+
                 GuiService.ErrorMessageChanged:Connect(newcclosure(function()
                     if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
                         while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
@@ -943,23 +910,17 @@ task.spawn(function()
     -- SA đã active → check melee
     print("[P1] SA đã active! Check melee...")
 
-    -- Check lần đầu
-    task.wait(2) -- đợi melee update
+    task.wait(2)
     if currentMelee == "Sanguine Art" then
-        -- Đang cầm SA → ghi file luôn
         StatusLabel.Text = "P1: ✅ Có SA! Ghi file..."
         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
         print("[P1] Đang cầm Sanguine Art → Ghi file!")
-
-        pcall(function()
-            writefile(Player.Name .. ".txt", "Completed-melee")
-        end)
+        pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
         warn("[P1] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
         StatusLabel.Text = "P1: ✅ Completed-melee!"
         return
     end
 
-    -- Chưa cầm SA → chạy getSA
     StatusLabel.Text = "P1: Chạy getSA..."
     StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
     print("[P1] Chưa cầm SA → Load getSA script...")
@@ -968,7 +929,6 @@ task.spawn(function()
         loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/2f576450d81d7643d532062f82461464/raw/77db4980c68c917613b9cf04848183606816cf12/getSA"))()
     end)
 
-    -- Loop check melee mỗi 5s chờ cầm SA
     while true do
         task.wait(5)
         local meleeName, isHolding = GetEquippedMelee()
@@ -978,10 +938,7 @@ task.spawn(function()
             StatusLabel.Text = "P1: ✅ Có SA! Ghi file..."
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
             print("[P1] Phát hiện Sanguine Art → Ghi file!")
-
-            pcall(function()
-                writefile(Player.Name .. ".txt", "Completed-melee")
-            end)
+            pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
             warn("[P1] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
             StatusLabel.Text = "P1: ✅ Completed-melee!"
             break
