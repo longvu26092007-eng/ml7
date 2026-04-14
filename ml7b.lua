@@ -482,7 +482,7 @@ MatFrame.BackgroundTransparency = 1
 Instance.new("UIListLayout", MatFrame).Padding = UDim.new(0, 3)
 
 local MaterialChecks = {
-    {"Dark Fragment", 1},
+    {"Dark Fragment", 2},
     {"Vampire Fang",  20},
     {"Demonic Wisp",  20}
 }
