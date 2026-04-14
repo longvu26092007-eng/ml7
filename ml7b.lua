@@ -913,7 +913,7 @@ task.spawn(function()
                 if currentDF >= 2 then
                     StatusLabel.Text       = "P1B: DF 1/1 ✅ KICK!"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                    print("[P1B] Dark Fragment đủ 1/1! Kick rejoin...")
+                    print("[P1B] Dark Fragment đủ 2/2! Kick rejoin...")
                     task.wait(2)
                     Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 1/1 Dark Fragment!\nRejoin để tiếp tục.")
                     break
@@ -928,7 +928,7 @@ task.spawn(function()
         spawn(function()
             while task.wait(0.2) do
                 xpcall(function() local c = 0
-                    if not CheckInventory("Dark Fragment") or CheckMaterial("Dark Fragment") < 1 then
+                    if not CheckInventory("Dark Fragment") or CheckMaterial("Dark Fragment") < 2 then
                         if CheckSea(2) then
                             if CheckMonster("Darkbeard") then
                                 for _, v2 in next, {workspace.Enemies, ReplicatedStorage} do
