@@ -12,7 +12,7 @@ local coreGui = game:GetService("CoreGui")
 math.randomseed(os.time() + tick())
 
 -- CẤU HÌNH
-local DETECT_RADIUS = 700
+local DETECT_RADIUS = 1200
 local SCAN_INTERVAL = 2 
 
 -- URL SCRIPT HOP CỦA VŨ (ĐÃ SỬA CHUỖI)
