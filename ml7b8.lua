@@ -315,13 +315,13 @@ Tween = function(targetCFrame, target)
         return
     end
     pathPart = Instance.new("Part")
-    pathPart.Name        = "TweenGhost"
+    pathPart.Name         = "TweenGhost"
     pathPart.Transparency = 1
-    pathPart.Anchored    = true
-    pathPart.CanCollide  = false
-    pathPart.CFrame      = target.CFrame
-    pathPart.Size        = Vector3.new(50, 50, 50)
-    pathPart.Parent      = workspace
+    pathPart.Anchored     = true
+    pathPart.CanCollide   = false
+    pathPart.CFrame       = target.CFrame
+    pathPart.Size         = Vector3.new(50, 50, 50)
+    pathPart.Parent       = workspace
     tween = TweenService:Create(pathPart, TweenInfo.new(distance / 275, Enum.EasingStyle.Linear), {CFrame = targetCFrame * (function()
         if target ~= root then return CFrame.new(0, 30, 0) end
         return CFrame.new(0, 5, 0)
@@ -366,7 +366,7 @@ BringMonster = function(name, count) count = count or 3
         for i = 1, #mob do
             local hrp = mob[i]:FindFirstChild("HumanoidRootPart")
             if hrp and (not isnetworkowner or isnetworkowner(hrp)) then
-                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyLinearVelocity  = Vector3.zero
                 hrp.AssemblyAngularVelocity = Vector3.zero
                 hrp.CFrame = t * CFrame.new((i-1) * 2, 0, 0)
             end
@@ -408,7 +408,6 @@ KillMonster = function(x)
     end, function(e) warn("Modules ERROR:", e) end)
 end
 
--- VFAndSA inventory wrappers
 local function GetInventory()
     local ok, inv = pcall(function() return COMMF_:InvokeServer("getInventory") end)
     if ok and type(inv) == "table" then return inv end
@@ -444,7 +443,7 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size                   = UDim2.new(1, 0, 0, 30)
-Title.Text                   = "Sanguine Art Kaitun"
+Title.Text                   = "VFAndSA Kaitun P1"
 Title.TextColor3             = Color3.fromRGB(0, 150, 255)
 Title.BackgroundTransparency = 1
 Title.Font                   = Enum.Font.GothamBold
@@ -477,13 +476,13 @@ MeleeLabel.TextSize               = 11
 MeleeLabel.TextXAlignment         = Enum.TextXAlignment.Left
 
 local MatFrame = Instance.new("Frame", MainFrame)
-MatFrame.Size             = UDim2.new(1, -20, 0, 78)
-MatFrame.Position         = UDim2.new(0, 10, 0, 73)
+MatFrame.Size                   = UDim2.new(1, -20, 0, 78)
+MatFrame.Position               = UDim2.new(0, 10, 0, 73)
 MatFrame.BackgroundTransparency = 1
 Instance.new("UIListLayout", MatFrame).Padding = UDim.new(0, 3)
 
 local MaterialChecks = {
-    {"Dark Fragment", 2},
+    {"Dark Fragment", 1},
     {"Vampire Fang",  20},
     {"Demonic Wisp",  20}
 }
@@ -541,7 +540,7 @@ services.UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-StatusLabel.Text = "Status: Checking Fragment..."
+StatusLabel.Text       = "Status: Checking Fragment..."
 StatusLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
 print("[VFAndSA P1] ✅ Loaded | LeftAlt ẩn/hiện")
 
@@ -561,7 +560,7 @@ task.spawn(function()
     print("[Fragment] Fragments: " .. fragCount .. "/5000")
 
     if fragCount >= 5000 then
-        fragmentOk = true
+        fragmentOk             = true
         StatusLabel.Text       = "Fragment: " .. fragCount .. "/5000 ✅"
         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
         print("[Fragment] Đủ! Tiếp tục Phần 0...")
@@ -668,107 +667,143 @@ task.spawn(function()
 end)
 
 -- ==========================================
+-- HÀM GET SA (dùng chung cho cả 2 nhánh)
+-- ==========================================
+local function RunGetSA()
+    print("[getSA] SA đã active! Check melee...")
+    task.wait(2)
+
+    if currentMelee == "Sanguine Art" then
+        StatusLabel.Text       = "✅ Có SA! Ghi file..."
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        print("[getSA] Đang cầm Sanguine Art → Ghi file!")
+        pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
+        warn("[getSA] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
+        StatusLabel.Text = "✅ Completed-melee!"
+        return
+    end
+
+    StatusLabel.Text       = "SA Active → Chạy getSA..."
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+    print("[getSA] Chưa cầm SA → Load getSA script...")
+
+    task.spawn(function()
+        loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/2f576450d81d7643d532062f82461464/raw/77db4980c68c917613b9cf04848183606816cf12/getSA"))()
+    end)
+
+    while true do
+        task.wait(5)
+        local meleeName = GetEquippedMelee()
+        currentMelee = meleeName
+
+        if meleeName == "Sanguine Art" then
+            StatusLabel.Text       = "✅ Có SA! Ghi file..."
+            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            print("[getSA] Phát hiện Sanguine Art → Ghi file!")
+            pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
+            warn("[getSA] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
+            StatusLabel.Text = "✅ Completed-melee!"
+            break
+        else
+            StatusLabel.Text       = "Đợi SA... (" .. meleeName .. ")"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        end
+    end
+end
+
+-- ==========================================
 -- PHẦN 1: AUTOMATION
 -- ==========================================
 task.spawn(function()
+    -- Đợi kết quả check SA xong
     repeat task.wait(1) until StatusLabel.Text:find("SA:") and not StatusLabel.Text:find("Checking")
 
-    if not saActive then
-        print("[P1B] SA chưa active → Check nguyên liệu...")
+    -- ====================================================
+    -- NHÁNH A: SA đã active → chạy getSA ngay, không cần farm gì
+    -- ====================================================
+    if saActive then
+        print("[P1] SA đã active ngay từ đầu → RunGetSA")
+        RunGetSA()
+        return
+    end
 
-        local inv     = GetInventory()
-        local dfCount = GetMaterialCount("Dark Fragment", inv)
+    -- ====================================================
+    -- NHÁNH B: SA chưa active → kiểm tra và farm nguyên liệu
+    -- ====================================================
+    print("[P1B] SA chưa active → Check nguyên liệu...")
 
-        if dfCount >= 1 then
-            -- ==========================================
-            -- PHẦN 1C: ĐỦ DF → CHECK VAMPIRE FANG
-            -- ==========================================
-            StatusLabel.Text       = "P1B: DF " .. dfCount .. "/1 ✅ → Tiếp..."
+    local inv     = GetInventory()
+    local dfCount = GetMaterialCount("Dark Fragment", inv)
+
+    if dfCount >= 1 then
+        -- ==========================================
+        -- PHẦN 1C: ĐỦ DF → CHECK VAMPIRE FANG
+        -- ==========================================
+        StatusLabel.Text       = "P1B: DF " .. dfCount .. "/1 ✅ → Tiếp..."
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        print("[P1B] Dark Fragment " .. dfCount .. "/1 → Đủ! Chuyển bước tiếp...")
+
+        local vfCount = GetMaterialCount("Vampire Fang", inv)
+
+        if vfCount >= 20 then
+            StatusLabel.Text       = "P1C: VF " .. vfCount .. "/20 ✅ → P1D..."
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-            print("[P1B] Dark Fragment " .. dfCount .. "/1 → Đủ! Chuyển bước tiếp...")
+            print("[P1C] Vampire Fang " .. vfCount .. "/20 → Đủ! Chuyển P1D...")
 
-            local vfCount = GetMaterialCount("Vampire Fang", inv)
+            local dwCount = GetMaterialCount("Demonic Wisp", inv)
 
-            if vfCount >= 20 then
-                StatusLabel.Text       = "P1C: VF " .. vfCount .. "/20 ✅ → P1D..."
+            if dwCount >= 20 then
+                -- Đủ tất cả materials, SA vẫn chưa active → đợi
+                StatusLabel.Text       = "P1D: DW " .. dwCount .. "/20 ✅ Đủ tất cả! Đợi SA..."
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                print("[P1C] Vampire Fang " .. vfCount .. "/20 → Đủ! Chuyển P1D...")
+                print("[P1D] Demonic Wisp đủ → Đủ tất cả! Đợi SA active...")
 
-                local dwCount = GetMaterialCount("Demonic Wisp", inv)
+                -- Đợi SA active rồi getSA
+                task.spawn(function()
+                    while true do
+                        task.wait(10)
+                        local saOk, saResult = pcall(function()
+                            return COMMF_:InvokeServer("BuySanguineArt", true)
+                        end)
+                        if saOk and type(saResult) ~= "string" then saActive = true
+                        elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
 
-                if dwCount >= 20 then
-                    StatusLabel.Text       = "P1D: DW " .. dwCount .. "/20 ✅ Đủ tất cả!"
-                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                    print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Đủ tất cả materials!")
-                else
-                    StatusLabel.Text       = "P1D: DW " .. dwCount .. "/20 → Farm..."
-                    StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-                    print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Farm!")
-
-                    task.spawn(function()
-                        loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
-                    end)
-                    task.wait(10)
-
-                    task.spawn(function()
-                        getgenv().NewUI  = true
-                        getgenv().Config = {
-                            ["Select Material"] = "Demonic Wisp",
-                            ["Farm Material"]   = true,
-                            ["Start Farm"]      = true,
-                            ["Hop Sever"]       = true
-                        }
-                        loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
-                    end)
-
-                    task.spawn(function()
-                        while true do
-                            local checkInv  = GetInventory()
-                            local currentDW = GetMaterialCount("Demonic Wisp", checkInv)
-                            local currentVF = GetMaterialCount("Vampire Fang",  checkInv)
-                            local currentDF = GetMaterialCount("Dark Fragment", checkInv)
-                            StatusLabel.Text = string.format("P1D: DW %d/20 | VF %d/20 | DF %d/1", currentDW, currentVF, currentDF)
-
-                            local saOk, saResult = pcall(function()
-                                return COMMF_:InvokeServer("BuySanguineArt", true)
-                            end)
-                            if saOk and type(saResult) ~= "string" then saActive = true
-                            elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
-
-                            if saActive then
-                                StatusLabel.Text       = "P1D: SA Active! KICK!"
-                                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                                task.wait(2)
-                                Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
-                                break
-                            end
-
-                            local meleeName = GetEquippedMelee()
-                            currentMelee = meleeName
-                            if meleeName ~= "None" then
-                                MeleeLabel.Text       = "🥊 Melee: " .. meleeName
-                                MeleeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                            end
-                            task.wait(15)
+                        if saActive then
+                            StatusLabel.Text       = "P1D: SA Active! → GetSA..."
+                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            RunGetSA()
+                            break
                         end
-                    end)
-                end
-
+                    end
+                end)
             else
-                StatusLabel.Text       = "P1C: VF " .. vfCount .. "/20 → Farm..."
+                StatusLabel.Text       = "P1D: DW " .. dwCount .. "/20 → Farm..."
                 StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-                print("[P1C] Vampire Fang " .. vfCount .. "/20 → Farm!")
+                print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Farm!")
 
                 task.spawn(function()
-                    loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/27187e5ea4ba15fbffa2168b5e85bc84/raw/9562e5bece3c7d0e36cf09938fbe9ed46304cea9/ultimaxradar"))()
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/longvu26092007-eng/ml7/refs/heads/main/ultmiaxrada.lua"))()
                 end)
                 task.wait(10)
 
                 task.spawn(function()
-                    while task.wait(10) do
+                    getgenv().NewUI  = true
+                    getgenv().Config = {
+                        ["Select Material"] = "Demonic Wisp",
+                        ["Farm Material"]   = true,
+                        ["Start Farm"]      = true,
+                        ["Hop Sever"]       = true
+                    }
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
+                end)
+
+                task.spawn(function()
+                    while true do
                         local checkInv  = GetInventory()
-                        local currentVF = GetMaterialCount("Vampire Fang", checkInv)
-                        StatusLabel.Text = "P1C: VF " .. currentVF .. "/20 | Farming..."
+                        local currentDW = GetMaterialCount("Demonic Wisp", checkInv)
+                        local currentVF = GetMaterialCount("Vampire Fang",  checkInv)
+                        local currentDF = GetMaterialCount("Dark Fragment", checkInv)
+                        StatusLabel.Text = string.format("P1D: DW %d/20 | VF %d/20 | DF %d/1", currentDW, currentVF, currentDF)
 
                         local saOk, saResult = pcall(function()
                             return COMMF_:InvokeServer("BuySanguineArt", true)
@@ -777,48 +812,39 @@ task.spawn(function()
                         elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
 
                         if saActive then
-                            StatusLabel.Text       = "P1C: SA Active! KICK!"
+                            StatusLabel.Text       = "P1D: SA Active! → GetSA..."
                             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                            task.wait(2)
-                            Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                            warn("[P1D] SA đã active trong lúc farm! Chạy getSA...")
+                            RunGetSA()
                             break
                         end
 
-                        if currentVF >= 20 then
-                            StatusLabel.Text       = "P1C: VF 20/20 ✅ KICK!"
-                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                            task.wait(2)
-                            Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 20/20 Vampire Fang!\nRejoin để tiếp tục.")
-                            break
+                        local meleeName = GetEquippedMelee()
+                        currentMelee = meleeName
+                        if meleeName ~= "None" then
+                            MeleeLabel.Text       = "🥊 Melee: " .. meleeName
+                            MeleeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                         end
+                        task.wait(15)
                     end
-                end)
-
-                task.spawn(function()
-                    getgenv().NewUI  = true
-                    getgenv().Config = {
-                        ["Select Material"] = "Vampire Fang",
-                        ["Farm Material"]   = true,
-                        ["Start Farm"]      = true,
-                        ["Hop Sever"]       = true
-                    }
-                    loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
                 end)
             end
 
         else
-            -- ==========================================
-            -- PHẦN 1B: CHƯA ĐỦ DF → FARM DARKBEARD (Source_SG Full)
-            -- ==========================================
-            StatusLabel.Text       = "P1B: DF " .. dfCount .. "/1 → Farm Darkbeard..."
+            StatusLabel.Text       = "P1C: VF " .. vfCount .. "/20 → Farm..."
             StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-            print("[P1B] Dark Fragment " .. dfCount .. "/1 → Chưa đủ, bật farm Darkbeard!")
+            print("[P1C] Vampire Fang " .. vfCount .. "/20 → Farm!")
 
-            -- Monitor: kick khi đủ DF hoặc SA active
+            task.spawn(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/longvu26092007-eng/ml7/refs/heads/main/ultmiaxrada.lua"))()
+            end)
+            task.wait(10)
+
             task.spawn(function()
                 while task.wait(10) do
-                    local currentDF = CheckMaterial("Dark Fragment")
-                    StatusLabel.Text = "P1B: DF " .. currentDF .. "/1 | Farming Darkbeard..."
+                    local checkInv  = GetInventory()
+                    local currentVF = GetMaterialCount("Vampire Fang", checkInv)
+                    StatusLabel.Text = "P1C: VF " .. currentVF .. "/20 | Farming..."
 
                     local saOk, saResult = pcall(function()
                         return COMMF_:InvokeServer("BuySanguineArt", true)
@@ -827,174 +853,179 @@ task.spawn(function()
                     elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
 
                     if saActive then
-                        StatusLabel.Text       = "P1B: SA Active! KICK!"
+                        StatusLabel.Text       = "P1C: SA Active! → GetSA..."
                         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                        warn("[P1B] SA đã active trong lúc farm DF! Kick rejoin...")
-                        task.wait(2)
-                        Player:Kick("\n[ VFAndSA Kaitun ]\nSanguine Art đã active!\nRejoin để nhận SA.")
+                        warn("[P1C] SA đã active trong lúc farm VF! Chạy getSA...")
+                        RunGetSA()
                         break
                     end
 
-                    if currentDF >= 1 then
-                        StatusLabel.Text       = "P1B: DF 1/1 ✅ KICK!"
+                    if currentVF >= 20 then
+                        StatusLabel.Text       = "P1C: VF 20/20 ✅ KICK!"
                         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                        print("[P1B] Dark Fragment đủ 1/1! Kick rejoin...")
                         task.wait(2)
-                        Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 1/1 Dark Fragment!\nRejoin để tiếp tục.")
+                        Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 20/20 Vampire Fang!\nRejoin để tiếp tục.")
                         break
                     end
                 end
             end)
 
-            -- ==========================================
-            -- SOURCE_SG FULL DARK FRAGMENT FARM LOOP
-            -- ==========================================
-            local all = 0
-            spawn(function()
-                while task.wait(0.2) do
-                    xpcall(function() local c = 0
-                        if not CheckInventory("Dark Fragment") or CheckMaterial("Dark Fragment") < 1 then
-                            if CheckSea(2) then
-                                if CheckMonster("Darkbeard") then
-                                    for _, v2 in next, {workspace.Enemies, ReplicatedStorage} do
-                                        for _, v in next, v2:GetChildren() do
-                                            if v.Name == "Darkbeard" then
-                                                repeat task.wait()
-                                                    StatusLabel.Text = "Killing Darkbeard\nHealth: " .. math.floor(v.Humanoid.Health / v.Humanoid.MaxHealth * 100) .. "%"
-                                                    KillMonster(v.Name)
-                                                until not v or not v:FindFirstChild("Humanoid") or v.Humanoid.Health <= 0
-                                                Tween(false)
-                                            end
-                                        end
-                                    end
-                                elseif CheckTool("Fist of Darkness") then
-                                    local Detection = workspace.Map.DarkbeardArena.Summoner.Detection
-                                    Tween(false)
-                                    StatusLabel.Text = "Spawn Darkbeard | Tweening..."
-                                    Tween(Detection.CFrame)
-                                    if (HumanoidRootPart.Position - Detection.Position).Magnitude <= 200 then
-                                        firetouchinterest(Detection, HumanoidRootPart, 0) task.wait(0.2)
-                                        firetouchinterest(Detection, HumanoidRootPart, 1)
-                                    end
-                                else
-                                    local chests = {}
-                                    if all < getgenv().Settings["Max Chests"] and not CheckTool("Fist of Darkness") then
-                                        for _, v in next, CollectionService:GetTagged("_ChestTagged") do
-                                            if v and v.CanTouch then
-                                                local dist = (v.Position - HumanoidRootPart.Position).Magnitude
-                                                table.insert(chests, {obj = v, dist = dist})
-                                            end
-                                        end
-                                        table.sort(chests, function(a, b) return a.dist < b.dist end)
-                                        if not CheckTool("Fist of Darkness") then
-                                            for i, t in next, chests do local v = t.obj
-                                                if v:IsA("BasePart") and v.Name:find("Chest") then
-                                                    if v.CanTouch then
-                                                        StatusLabel.Text = "Collect Chests"
-                                                        repeat task.wait()
-                                                            StatusLabel.Text = "Collect Chests | " .. c .. "/" .. all .. "/" .. getgenv().Settings["Max Chests"] .. " Chests"
-                                                            if Character.Humanoid and Character.Humanoid.Health > 0 then
-                                                                Character:SetPrimaryPartCFrame(v.CFrame)
-                                                                task.delay(2, function() v.CanTouch = false end)
-                                                            end
-                                                            pcall(function()
-                                                                if (Character.Humanoid.FloorMaterial ~= Enum.Material.Air
-                                                                    or not table.find({Enum.HumanoidStateType.Jumping, Enum.HumanoidStateType.Dead}, Character.Humanoid:GetState())) then
-                                                                    Character:FindFirstChildWhichIsA("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
-                                                                end
-                                                            end)
-                                                        until not v.CanTouch or CheckTool("Fist of Darkness")
-                                                        c += 1 all += 1
-                                                        if all >= getgenv().Settings["Max Chests"] or CheckTool("Fist of Darkness") then
-                                                            StatusLabel.Text = "P1B: Stopped - Max/Item"
-                                                            break
-                                                        end
-                                                        if c >= getgenv().Settings["Reset After Collect Chests"] and not CheckTool("Fist of Darkness") then
-                                                            Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
-                                                            StatusLabel.Text = "Collect Chests | Reset: " .. getgenv().Settings["Reset After Collect Chests"] .. " Chests"
-                                                            c = 0 task.wait(1)
-                                                        end
-                                                    end
-                                                    if i % 250 == 0 then task.wait(0.01) end
-                                                end
-                                            end
-                                        else
-                                            Tween(false)
-                                            StatusLabel.Text = "P1B: Stopped - Found Special Item"
-                                        end
-                                        if not CheckTool("Fist of Darkness") then HopServer() end
-                                    end
-                                end
-                            else
-                                COMMF_:InvokeServer("TravelDressrosa") task.wait(5)
-                            end
-                        end
-                    end, function(err) warn(err) end)
-                end
+            task.spawn(function()
+                getgenv().NewUI  = true
+                getgenv().Config = {
+                    ["Select Material"] = "Vampire Fang",
+                    ["Farm Material"]   = true,
+                    ["Start Farm"]      = true,
+                    ["Hop Sever"]       = true
+                }
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
             end)
-
-            -- Error handling
-            TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
-                if teleportResult == Enum.TeleportResult.GameFull then
-                    warn("[HOP] Server đầy, thử lại...")
-                    task.delay(2, function() HopServer("Retry - Server đầy") end)
-                elseif teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
-                    StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
-                    task.delay(10, function() game:Shutdown() end)
-                else
-                    warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
-                    task.delay(3, function() HopServer("Retry - Teleport fail") end)
-                end
-            end)
-
-            GuiService.ErrorMessageChanged:Connect(newcclosure(function()
-                if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
-                    while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
-                end
-            end))
-
-            return
         end
 
-        -- SA đã active → check melee
-        print("[P1] SA đã active! Check melee...")
-        task.wait(2)
-
-        if currentMelee == "Sanguine Art" then
-            StatusLabel.Text       = "P1: ✅ Có SA! Ghi file..."
-            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-            print("[P1] Đang cầm Sanguine Art → Ghi file!")
-            pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
-            warn("[P1] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
-            StatusLabel.Text = "P1: ✅ Completed-melee!"
-            return
-        end
-
-        StatusLabel.Text       = "P1: Chạy getSA..."
+    else
+        -- ==========================================
+        -- PHẦN 1B: CHƯA ĐỦ DF → FARM DARKBEARD (Source_SG Full)
+        -- ==========================================
+        StatusLabel.Text       = "P1B: DF " .. dfCount .. "/1 → Farm Darkbeard..."
         StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-        print("[P1] Chưa cầm SA → Load getSA script...")
+        print("[P1B] Dark Fragment " .. dfCount .. "/1 → Chưa đủ, bật farm Darkbeard!")
 
+        -- Monitor: kick khi đủ DF hoặc SA active → getSA
         task.spawn(function()
-            loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/2f576450d81d7643d532062f82461464/raw/77db4980c68c917613b9cf04848183606816cf12/getSA"))()
+            while task.wait(10) do
+                local currentDF = CheckMaterial("Dark Fragment")
+                StatusLabel.Text = "P1B: DF " .. currentDF .. "/1 | Farming Darkbeard..."
+
+                local saOk, saResult = pcall(function()
+                    return COMMF_:InvokeServer("BuySanguineArt", true)
+                end)
+                if saOk and type(saResult) ~= "string" then saActive = true
+                elseif saOk and type(saResult) == "string" and not saResult:lower():find("bring me") then saActive = true end
+
+                if saActive then
+                    StatusLabel.Text       = "P1B: SA Active! → GetSA..."
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    warn("[P1B] SA đã active trong lúc farm DF! Chạy getSA...")
+                    RunGetSA()
+                    break
+                end
+
+                if currentDF >= 1 then
+                    StatusLabel.Text       = "P1B: DF 1/1 ✅ KICK!"
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    print("[P1B] Dark Fragment đủ 1/1! Kick rejoin...")
+                    task.wait(2)
+                    Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 1/1 Dark Fragment!\nRejoin để tiếp tục.")
+                    break
+                end
+            end
         end)
 
-        while true do
-            task.wait(5)
-            local meleeName, isHolding = GetEquippedMelee()
-            currentMelee = meleeName
-
-            if meleeName == "Sanguine Art" then
-                StatusLabel.Text       = "P1: ✅ Có SA! Ghi file..."
-                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                print("[P1] Phát hiện Sanguine Art → Ghi file!")
-                pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
-                warn("[P1] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
-                StatusLabel.Text = "P1: ✅ Completed-melee!"
-                break
-            else
-                StatusLabel.Text       = "P1: Đợi SA... (" .. meleeName .. ")"
-                StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        -- ==========================================
+        -- SOURCE_SG FULL DARK FRAGMENT FARM LOOP
+        -- ==========================================
+        local all = 0
+        spawn(function()
+            while task.wait(0.2) do
+                xpcall(function() local c = 0
+                    if not CheckInventory("Dark Fragment") or CheckMaterial("Dark Fragment") < 1 then
+                        if CheckSea(2) then
+                            if CheckMonster("Darkbeard") then
+                                for _, v2 in next, {workspace.Enemies, ReplicatedStorage} do
+                                    for _, v in next, v2:GetChildren() do
+                                        if v.Name == "Darkbeard" then
+                                            repeat task.wait()
+                                                StatusLabel.Text = "Killing Darkbeard | HP: " .. math.floor(v.Humanoid.Health / v.Humanoid.MaxHealth * 100) .. "%"
+                                                KillMonster(v.Name)
+                                            until not v or not v:FindFirstChild("Humanoid") or v.Humanoid.Health <= 0
+                                            Tween(false)
+                                        end
+                                    end
+                                end
+                            elseif CheckTool("Fist of Darkness") then
+                                local Detection = workspace.Map.DarkbeardArena.Summoner.Detection
+                                Tween(false)
+                                StatusLabel.Text = "Spawn Darkbeard | Tweening..."
+                                Tween(Detection.CFrame)
+                                if (HumanoidRootPart.Position - Detection.Position).Magnitude <= 200 then
+                                    firetouchinterest(Detection, HumanoidRootPart, 0) task.wait(0.2)
+                                    firetouchinterest(Detection, HumanoidRootPart, 1)
+                                end
+                            else
+                                local chests = {}
+                                if all < getgenv().Settings["Max Chests"] and not CheckTool("Fist of Darkness") then
+                                    for _, v in next, CollectionService:GetTagged("_ChestTagged") do
+                                        if v and v.CanTouch then
+                                            local dist = (v.Position - HumanoidRootPart.Position).Magnitude
+                                            table.insert(chests, {obj = v, dist = dist})
+                                        end
+                                    end
+                                    table.sort(chests, function(a, b) return a.dist < b.dist end)
+                                    if not CheckTool("Fist of Darkness") then
+                                        for i, t in next, chests do local v = t.obj
+                                            if v:IsA("BasePart") and v.Name:find("Chest") then
+                                                if v.CanTouch then
+                                                    StatusLabel.Text = "Collect Chests"
+                                                    repeat task.wait()
+                                                        StatusLabel.Text = "Collect Chests | " .. c .. "/" .. all .. "/" .. getgenv().Settings["Max Chests"] .. " Chests"
+                                                        if Character.Humanoid and Character.Humanoid.Health > 0 then
+                                                            Character:SetPrimaryPartCFrame(v.CFrame)
+                                                            task.delay(2, function() v.CanTouch = false end)
+                                                        end
+                                                        pcall(function()
+                                                            if (Character.Humanoid.FloorMaterial ~= Enum.Material.Air
+                                                                or not table.find({Enum.HumanoidStateType.Jumping, Enum.HumanoidStateType.Dead}, Character.Humanoid:GetState())) then
+                                                                Character:FindFirstChildWhichIsA("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+                                                            end
+                                                        end)
+                                                    until not v.CanTouch or CheckTool("Fist of Darkness")
+                                                    c += 1 all += 1
+                                                    if all >= getgenv().Settings["Max Chests"] or CheckTool("Fist of Darkness") then
+                                                        StatusLabel.Text = "P1B: Stopped - Max/Item"
+                                                        break
+                                                    end
+                                                    if c >= getgenv().Settings["Reset After Collect Chests"] and not CheckTool("Fist of Darkness") then
+                                                        Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
+                                                        StatusLabel.Text = "Collect Chests | Reset: " .. getgenv().Settings["Reset After Collect Chests"] .. " Chests"
+                                                        c = 0 task.wait(1)
+                                                    end
+                                                end
+                                                if i % 250 == 0 then task.wait(0.01) end
+                                            end
+                                        end
+                                    else
+                                        Tween(false)
+                                        StatusLabel.Text = "P1B: Stopped - Found Special Item"
+                                    end
+                                    if not CheckTool("Fist of Darkness") then HopServer() end
+                                end
+                            end
+                        else
+                            COMMF_:InvokeServer("TravelDressrosa") task.wait(5)
+                        end
+                    end
+                end, function(err) warn(err) end)
             end
-        end
+        end)
+
+        -- Error handling
+        TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
+            if teleportResult == Enum.TeleportResult.GameFull then
+                warn("[HOP] Server đầy, thử lại...")
+                task.delay(2, function() HopServer("Retry - Server đầy") end)
+            elseif teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
+                StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
+                task.delay(10, function() game:Shutdown() end)
+            else
+                warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
+                task.delay(3, function() HopServer("Retry - Teleport fail") end)
+            end
+        end)
+
+        GuiService.ErrorMessageChanged:Connect(newcclosure(function()
+            if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
+                while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
+            end
+        end))
     end
 end)
