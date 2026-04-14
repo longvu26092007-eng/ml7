@@ -735,7 +735,7 @@ task.spawn(function()
     local inv     = GetInventory()
     local dfCount = GetMaterialCount("Dark Fragment", inv)
 
-    if dfCount >= 1 then
+    if dfCount >= 2 then
         -- ==========================================
         -- PHẦN 1C: ĐỦ DF → CHECK VAMPIRE FANG
         -- ==========================================
