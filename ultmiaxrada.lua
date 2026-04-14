@@ -12,7 +12,7 @@ local coreGui = game:GetService("CoreGui")
 math.randomseed(os.time() + tick())
 
 -- CẤU HÌNH
-local DETECT_RADIUS = 400 
+local DETECT_RADIUS = 700
 local SCAN_INTERVAL = 2 
 
 -- URL SCRIPT HOP CỦA VŨ (ĐÃ SỬA CHUỖI)
@@ -66,7 +66,7 @@ end
 
 -- HÀM LẤY THỜI GIAN CHỜ NGẪU NHIÊN
 local function GetRandomWaitTime()
-    local times = {20, 30, 43, 58, 65}
+    local times = {30, 40, 53, 68, 75}
     return times[math.random(1, #times)]
 end
 
