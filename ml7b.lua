@@ -443,7 +443,7 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size                   = UDim2.new(1, 0, 0, 30)
-Title.Text                   = "VFAndSA Kaitun P1"
+Title.Text                   = "Sanguine Art Kaitun By Vu Nguyen"
 Title.TextColor3             = Color3.fromRGB(0, 150, 255)
 Title.BackgroundTransparency = 1
 Title.Font                   = Enum.Font.GothamBold
