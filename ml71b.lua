@@ -910,7 +910,7 @@ task.spawn(function()
                     break
                 end
 
-                if currentDF >= 1 then
+                if currentDF >= 2 then
                     StatusLabel.Text       = "P1B: DF 1/1 ✅ KICK!"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
                     print("[P1B] Dark Fragment đủ 1/1! Kick rejoin...")
