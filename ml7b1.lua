@@ -339,6 +339,10 @@ local function HopServer(Reason, MaxPlayers, ForcedRegion)
     ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer('teleport', ServerData.JobId)
 end
 
+-- Gán global để BananaHub và script bên ngoài gọi được
+getgenv().GetServers = GetServers
+getgenv().HopServer  = HopServer
+
 -- ==========================================
 -- ERROR HANDLING V17.3 (GLOBAL - GIỮ NGUYÊN TỪ V17.2)
 -- ==========================================
