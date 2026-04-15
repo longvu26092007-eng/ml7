@@ -4,7 +4,7 @@
 getgenv().Team = "Pirates"
 getgenv().Key = getgenv().Key or "NHAP_KEY_VAO_DAY"
 getgenv().Settings = {
-    ["Max Chests"] = 30;
+    ["Max Chests"] = 40;
     ["Reset After Collect Chests"] = 10;
 }
 
@@ -12,7 +12,7 @@ getgenv().Settings = {
 -- [ HOP CONFIG - CHỈNH Ở ĐÂY ]
 -- ==========================================
 getgenv().HOP_CONFIG = {
-    MaxPlayers    = 8,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
+    MaxPlayers    = 10,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
     ForcedRegion  = nil,     -- Ép region: "US", "EU", "AP" (nil = bỏ qua)
     MaxRetries    = 10,      -- Số lần thử tối đa
     RetryDelay    = 1,       -- Giây chờ giữa mỗi lần thử
