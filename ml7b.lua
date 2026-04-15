@@ -4,7 +4,7 @@
 getgenv().Team = "Pirates"
 getgenv().Key = getgenv().Key or "NHAP_KEY_VAO_DAY"
 getgenv().Settings = {
-    ["Max Chests"] = 35;
+    ["Max Chests"] = 45;
     ["Reset After Collect Chests"] = 10;
 }
 
