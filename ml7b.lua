@@ -9,11 +9,26 @@ getgenv().Settings = {
 }
 
 -- ==========================================
+-- [ HOP CONFIG - CHỈNH Ở ĐÂY ]
+-- ==========================================
+getgenv().HOP_CONFIG = {
+    MaxPlayers    = 6,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
+    ForcedRegion  = nil,     -- Ép region: "US", "EU", "AP" (nil = bỏ qua)
+    MaxRetries    = 5,      -- Số lần thử tối đa
+    RetryDelay    = 1,       -- Giây chờ giữa mỗi lần thử
+    CacheDuration = 60,      -- Giây cache danh sách server
+    MaxPages      = 100,     -- Số trang tối đa khi lấy danh sách server
+}
+
+-- ==========================================
 -- [ GAME LOAD - Source_SG Style ]
 -- ==========================================
+if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait(0.5) until game:IsLoaded()
     and game.Players.LocalPlayer
     and game.Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+
+task.wait(1) -- chờ executor ổn định, tránh lỗi tab không load
 
 getgenv().cloneref       = cloneref or clonereference or function(x) return x end
 getgenv().isnetworkowner = isnetworkowner or isNetworkOwner or function() return true end
@@ -201,16 +216,20 @@ FastAttack = function(x)
     lastCallFA = tick()
 end
 
+-- ==========================================
+-- [ HOP SERVER - DÙNG HOP_CONFIG ]
+-- ==========================================
 local function IfTableHaveIndex(j)
     for _ in j do return true end
 end
 
 local LastServersDataPulled, CachedServers
 GetServers = function()
+    local cfg = getgenv().HOP_CONFIG
     if LastServersDataPulled then
-        if os.time() - LastServersDataPulled < 60 then return CachedServers end
+        if os.time() - LastServersDataPulled < (cfg.CacheDuration or 60) then return CachedServers end
     end
-    for i = 1, 100 do
+    for i = 1, (cfg.MaxPages or 100) do
         local ok, data = pcall(function()
             return ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer(i)
         end)
@@ -225,6 +244,11 @@ GetServers = function()
 end
 
 HopServer = function(Reason, MaxPlayers, ForcedRegion)
+    local cfg = getgenv().HOP_CONFIG
+    -- Ưu tiên tham số truyền vào, fallback về HOP_CONFIG
+    MaxPlayers   = MaxPlayers   or cfg.MaxPlayers
+    ForcedRegion = ForcedRegion or cfg.ForcedRegion
+
     local Servers = GetServers()
     if not Servers then
         warn("[HOP] Không có dữ liệu server, hop random...")
@@ -248,6 +272,8 @@ HopServer = function(Reason, MaxPlayers, ForcedRegion)
         TeleportService:Teleport(PlaceId, LocalPlayer)
         return
     end
+
+    -- Lọc theo MaxPlayers và ForcedRegion
     local FilteredServers = {}
     for _, server in ipairs(ArrayServers) do
         local passPlayers = not MaxPlayers or server.Players < MaxPlayers
@@ -256,6 +282,12 @@ HopServer = function(Reason, MaxPlayers, ForcedRegion)
             table.insert(FilteredServers, server)
         end
     end
+
+    print("[HOP] Sau lọc:", #FilteredServers, "servers",
+        "(MaxPlayers <", tostring(MaxPlayers) .. ",",
+        "Region:", tostring(ForcedRegion) .. ")")
+
+    -- Fallback 1: bỏ region, giữ MaxPlayers
     if #FilteredServers == 0 then
         warn("[HOP] Không khớp filter, thử bỏ region...")
         for _, server in ipairs(ArrayServers) do
@@ -264,10 +296,12 @@ HopServer = function(Reason, MaxPlayers, ForcedRegion)
             end
         end
     end
+    -- Fallback 2: dùng hết
     if #FilteredServers == 0 then
         warn("[HOP] Dùng toàn bộ danh sách...")
         FilteredServers = ArrayServers
     end
+
     local ServerData = FilteredServers[math.random(1, #FilteredServers)]
     print("[HOP] Đã chọn:", ServerData.JobId, "| Players:", ServerData.Players, "| Region:", ServerData.Region)
     if Reason then print("[HOP] Lý do:", Reason) end
