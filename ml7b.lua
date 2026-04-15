@@ -12,7 +12,7 @@ getgenv().Settings = {
 -- [ HOP CONFIG - CHỈNH Ở ĐÂY ]
 -- ==========================================
 getgenv().HOP_CONFIG = {
-    MaxPlayers    = 8,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
+    MaxPlayers    = 3,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
     ForcedRegion  = nil,     -- Ép region: "US", "EU", "AP" (nil = bỏ qua)
     MaxRetries    = 10,      -- Số lần thử tối đa
     RetryDelay    = 1,       -- Giây chờ giữa mỗi lần thử
@@ -103,47 +103,6 @@ repeat task.wait(2) until Character
     and Character:FindFirstChild("HumanoidRootPart")
     and Character:FindFirstChildWhichIsA("Humanoid")
     and Character:IsDescendantOf(workspace.Characters)
-
--- ==========================================
--- [ GLOBAL REJOIN - JOIN LẠI JOBID KHI BỊ KICK/DISCONNECT ]
--- ==========================================
-local _savedJobId = JobId -- Lưu JobId ngay lúc script chạy
-
--- Bắt MỌI loại disconnect/kick (Error 267, 277, v.v.)
-GuiService.ErrorMessageChanged:Connect(newcclosure(function()
-    warn("[REJOIN] Phát hiện disconnect/kick! Đang join lại JobId:", _savedJobId)
-    while true do
-        pcall(function()
-            TeleportService:TeleportToPlaceInstance(PlaceId, _savedJobId, LocalPlayer)
-        end)
-        task.wait(5)
-    end
-end))
-
--- Bắt teleport thất bại (server đầy, lỗi mạng, v.v.)
-TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
-    if teleportResult == Enum.TeleportResult.GameFull then
-        warn("[HOP] Server đầy, thử join lại JobId...")
-        task.delay(2, function()
-            TeleportService:TeleportToPlaceInstance(PlaceId, _savedJobId, LocalPlayer)
-        end)
-    elseif teleportResult == Enum.TeleportResult.IsTeleporting
-        and (message and message:find("previous teleport")) then
-        StarterGui:SetCore("SendNotification", {
-            Title = "Death Hop Found",
-            Text  = message,
-            Duration = 8
-        })
-        task.delay(10, function()
-            TeleportService:TeleportToPlaceInstance(PlaceId, _savedJobId, LocalPlayer)
-        end)
-    else
-        warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
-        task.delay(3, function() HopServer("Retry - Teleport fail") end)
-    end
-end)
-
-print("[REJOIN] ✅ Global rejoin handler active | JobId:", _savedJobId)
 
 -- ==========================================
 -- [ SOURCE_SG HELPER FUNCTIONS ]
@@ -1083,5 +1042,24 @@ task.spawn(function()
             end
         end)
 
+        -- Error handling
+        TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
+            if teleportResult == Enum.TeleportResult.GameFull then
+                warn("[HOP] Server đầy, thử lại...")
+                task.delay(2, function() HopServer("Retry - Server đầy") end)
+            elseif teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
+                StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
+                task.delay(10, function() game:Shutdown() end)
+            else
+                warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
+                task.delay(3, function() HopServer("Retry - Teleport fail") end)
+            end
+        end)
+
+        GuiService.ErrorMessageChanged:Connect(newcclosure(function()
+            if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
+                while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
+            end
+        end))
     end
 end)
