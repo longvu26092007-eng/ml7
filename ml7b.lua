@@ -12,12 +12,12 @@ getgenv().Settings = {
 -- [ HOP CONFIG - CHỈNH Ở ĐÂY ]
 -- ==========================================
 getgenv().HOP_CONFIG = {
-    MaxPlayers    = 3,
-    ForcedRegion  = nil,
-    MaxRetries    = 10,
-    RetryDelay    = 1,
-    CacheDuration = 60,
-    MaxPages      = 100,
+    MaxPlayers    = 4,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
+    ForcedRegion  = nil,     -- Ép region: "US", "EU", "AP" (nil = bỏ qua)
+    MaxRetries    = 10,      -- Số lần thử tối đa
+    RetryDelay    = 1,       -- Giây chờ giữa mỗi lần thử
+    CacheDuration = 60,      -- Giây cache danh sách server
+    MaxPages      = 100,     -- Số trang tối đa khi lấy danh sách server
 }
 
 -- ==========================================
@@ -28,7 +28,7 @@ repeat task.wait(0.5) until game:IsLoaded()
     and game.Players.LocalPlayer
     and game.Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 
-task.wait(1)
+task.wait(1) -- chờ executor ổn định, tránh lỗi tab không load
 
 getgenv().cloneref       = cloneref or clonereference or function(x) return x end
 getgenv().isnetworkowner = isnetworkowner or isNetworkOwner or function() return true end
@@ -103,32 +103,6 @@ repeat task.wait(2) until Character
     and Character:FindFirstChild("HumanoidRootPart")
     and Character:FindFirstChildWhichIsA("Humanoid")
     and Character:IsDescendantOf(workspace.Characters)
-
--- ==========================================
--- [ AUTO BUSO HAKI - Mua + Bật tự động ]
--- ==========================================
-task.spawn(function()
-    while task.wait(4) do
-        xpcall(function()
-            if not Character or not Character:FindFirstChild("Humanoid") or Character.Humanoid.Health <= 0 then return end
-            -- Auto mua Buso nếu chưa có và đủ Beli
-            if not CollectionService:HasTag(Character, "Buso") then
-                pcall(function()
-                    if LocalPlayer.Data.Beli.Value >= 25000 then
-                        COMMF_:InvokeServer("BuyHaki", "Buso")
-                        print("[Buso] Đã mua Buso Haki!")
-                    end
-                end)
-            end
-            -- Auto bật Buso nếu chưa bật
-            if not Character:FindFirstChild("HasBuso") then
-                pcall(function()
-                    COMMF_:InvokeServer("Buso")
-                end)
-            end
-        end, function(err) warn("[Buso] Error:", err) end)
-    end
-end)
 
 -- ==========================================
 -- [ SOURCE_SG HELPER FUNCTIONS ]
@@ -243,8 +217,8 @@ FastAttack = function(x)
 end
 
 -- ======================================================================
--- [ HOP SERVER - V17.3 TỐI ƯU ]
--- Lấy HẾT danh sách server → chọn theo MaxPlayers → +1 dần nếu không có
+-- [ HOP SERVER - DRACO HUNTER V17.3 (NGUYÊN BẢN) ]
+-- Chỉ dùng __ServerBrowser, giữ nguyên logic V17.3
 -- ======================================================================
 local function IfTableHaveIndex(j)
     for _ in j do
@@ -261,31 +235,16 @@ local function GetServers()
         end
     end
 
-    local allServers = {}
-    local pagesFound = 0
-
     for i = 1, getgenv().HOP_CONFIG.MaxPages do
         local ok, data = pcall(function()
             return ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer(i)
         end)
 
         if ok and data and IfTableHaveIndex(data) then
-            pagesFound = pagesFound + 1
-            for id, v in data do
-                if not allServers[id] then
-                    allServers[id] = v
-                end
-            end
-        else
-            break
+            LastServersDataPulled = os.time()
+            CachedServers = data
+            return data
         end
-    end
-
-    if pagesFound > 0 then
-        print("[HOP] Đã quét", pagesFound, "trang server")
-        LastServersDataPulled = os.time()
-        CachedServers = allServers
-        return allServers
     end
 
     warn("[HOP] Không lấy được danh sách server!")
@@ -293,16 +252,18 @@ local function GetServers()
 end
 
 local function HopServer(Reason, MaxPlayers, ForcedRegion)
+    -- Ưu tiên tham số truyền vào, nếu không thì lấy từ config
     MaxPlayers   = MaxPlayers   or getgenv().HOP_CONFIG.MaxPlayers
     ForcedRegion = ForcedRegion or getgenv().HOP_CONFIG.ForcedRegion
 
     local Servers = GetServers()
     if not Servers then
-        warn("[HOP] Không có dữ liệu server, hop random...")
+        warn("[HOP] Không có dữ liệu server, thử hop random bằng TeleportService...")
         TeleportService:Teleport(PlaceId, LocalPlayer)
         return
     end
 
+    -- Chuyển dictionary → mảng, loại bỏ server hiện tại
     local ArrayServers = {}
     for id, v in Servers do
         if id ~= JobId then
@@ -315,78 +276,95 @@ local function HopServer(Reason, MaxPlayers, ForcedRegion)
         end
     end
 
-    print("[HOP] Tổng cộng", #ArrayServers, "servers")
+    print("[HOP] Nhận được", #ArrayServers, "servers")
 
     if #ArrayServers == 0 then
-        warn("[HOP] Danh sách rỗng, hop random...")
+        warn("[HOP] Danh sách server rỗng, hop random...")
         TeleportService:Teleport(PlaceId, LocalPlayer)
         return
     end
 
-    table.sort(ArrayServers, function(a, b) return a.Players < b.Players end)
-
+    -- Lọc server theo điều kiện
     local FilteredServers = {}
-    local tryMax = MaxPlayers or 999
+    for _, server in ipairs(ArrayServers) do
+        local passPlayers = true
+        local passRegion  = true
 
-    while #FilteredServers == 0 and tryMax <= 20 do
+        if MaxPlayers and server.Players >= MaxPlayers then
+            passPlayers = false
+        end
+
+        if ForcedRegion and server.Region ~= ForcedRegion then
+            passRegion = false
+        end
+
+        if passPlayers and passRegion then
+            table.insert(FilteredServers, server)
+        end
+    end
+
+    print("[HOP] Sau lọc:", #FilteredServers, "servers phù hợp",
+        "(MaxPlayers <", tostring(MaxPlayers) .. ",",
+        "Region:", tostring(ForcedRegion) .. ")")
+
+    -- Nếu không có server nào phù hợp, nới lỏng điều kiện
+    if #FilteredServers == 0 then
+        warn("[HOP] Không có server nào khớp filter, thử bỏ filter region...")
         for _, server in ipairs(ArrayServers) do
-            local passPlayers = server.Players < tryMax
-            local passRegion  = not ForcedRegion or server.Region == ForcedRegion
-            if passPlayers and passRegion then
+            if not MaxPlayers or server.Players < MaxPlayers then
                 table.insert(FilteredServers, server)
             end
         end
-
-        if #FilteredServers == 0 and ForcedRegion then
-            for _, server in ipairs(ArrayServers) do
-                if server.Players < tryMax then
-                    table.insert(FilteredServers, server)
-                end
-            end
-        end
-
-        if #FilteredServers == 0 then
-            print("[HOP] Không có server <", tryMax, "người → thử <", tryMax + 1)
-            tryMax = tryMax + 1
-        end
     end
 
+    -- Vẫn không có → dùng toàn bộ
     if #FilteredServers == 0 then
-        warn("[HOP] Không tìm được, dùng server ít người nhất...")
+        warn("[HOP] Vẫn không có server phù hợp, dùng toàn bộ danh sách...")
         FilteredServers = ArrayServers
     end
 
-    print("[HOP] Tìm được", #FilteredServers, "servers (MaxPlayers <", tryMax .. ")")
-
+    -- Chọn random từ danh sách đã lọc
     local ServerData = FilteredServers[math.random(1, #FilteredServers)]
 
-    print("[HOP] Đã chọn:", ServerData.JobId,
+    print("[HOP] Đã chọn server:", ServerData.JobId,
         "| Players:", ServerData.Players,
         "| Region:", ServerData.Region)
 
-    if Reason then print("[HOP] Lý do:", Reason) end
+    if Reason then
+        print("[HOP] Lý do:", Reason)
+    end
 
-    print("[HOP] Đang teleport...")
+    -- Teleport bằng __ServerBrowser
+    print("[HOP] Đang teleport đến", ServerData.JobId, "...")
     ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer('teleport', ServerData.JobId)
 end
 
+-- Gán global để BananaHub và script bên ngoài gọi được
 getgenv().GetServers = GetServers
 getgenv().HopServer  = HopServer
 
 -- ==========================================
--- ERROR HANDLING (GLOBAL)
+-- ERROR HANDLING V17.3 (GLOBAL - GIỮ NGUYÊN TỪ V17.2)
 -- ==========================================
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
     if teleportResult == Enum.TeleportResult.GameFull then
-        warn("[HOP] Server đầy, thử lại...")
-        task.delay(2, function() HopServer("Retry - Server đầy") end)
+        warn("[HOP] Server đầy, thử hop lại...")
+        task.delay(2, function()
+            HopServer("Retry - Server đầy")
+        end)
     elseif teleportResult == Enum.TeleportResult.IsTeleporting
         and (message:find("previous teleport")) then
-        StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
+        StarterGui:SetCore("SendNotification", {
+            Title    = "Death Hop Found",
+            Text     = message,
+            Duration = 8
+        })
         task.delay(10, function() game:Shutdown() end)
     else
         warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
-        task.delay(3, function() HopServer("Retry - Teleport fail") end)
+        task.delay(3, function()
+            HopServer("Retry - Teleport fail")
+        end)
     end
 end)
 
@@ -399,6 +377,8 @@ GuiService.ErrorMessageChanged:Connect(newcclosure(function()
     end
 end))
 
+-- ======================================================================
+-- [ HẾT PHẦN HOP SERVER V17.3 ]
 -- ======================================================================
 
 local function getCFrame(v)
@@ -570,7 +550,7 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size                   = UDim2.new(1, 0, 0, 30)
-Title.Text                   = "Sanguine Art Kaitun "
+Title.Text                   = "Sanguine Art Kaitun By Vu Nguyen"
 Title.TextColor3             = Color3.fromRGB(0, 150, 255)
 Title.BackgroundTransparency = 1
 Title.Font                   = Enum.Font.GothamBold
@@ -704,6 +684,7 @@ task.spawn(function()
                 if currentFrag >= 5000 then
                     StatusLabel.Text       = "Fragment: 5000 ✅ KICK!"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    print("[Fragment] Đủ 5000! Kick rejoin...")
                     task.wait(2)
                     Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 5000 Fragments!\nRejoin để tiếp tục.")
                     break
@@ -802,13 +783,16 @@ local function RunGetSA()
     if currentMelee == "Sanguine Art" then
         StatusLabel.Text       = "✅ Có SA! Ghi file..."
         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        print("[getSA] Đang cầm Sanguine Art → Ghi file!")
         pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
+        warn("[getSA] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
         StatusLabel.Text = "✅ Completed-melee!"
         return
     end
 
     StatusLabel.Text       = "SA Active → Chạy getSA..."
     StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+    print("[getSA] Chưa cầm SA → Load getSA script...")
 
     task.spawn(function()
         loadstring(game:HttpGet("https://gist.githubusercontent.com/longvu26092007-eng/2f576450d81d7643d532062f82461464/raw/77db4980c68c917613b9cf04848183606816cf12/getSA"))()
@@ -818,14 +802,18 @@ local function RunGetSA()
         task.wait(5)
         local meleeName = GetEquippedMelee()
         currentMelee = meleeName
+
         if meleeName == "Sanguine Art" then
             StatusLabel.Text       = "✅ Có SA! Ghi file..."
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            print("[getSA] Phát hiện Sanguine Art → Ghi file!")
             pcall(function() writefile(Player.Name .. ".txt", "Completed-melee") end)
+            warn("[getSA] Đã ghi: " .. Player.Name .. ".txt → Completed-melee")
             StatusLabel.Text = "✅ Completed-melee!"
             break
         else
-            StatusLabel.Text = "Đợi SA... (" .. meleeName .. ")"
+            StatusLabel.Text       = "Đợi SA... (" .. meleeName .. ")"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
         end
     end
 end
@@ -834,35 +822,50 @@ end
 -- PHẦN 1: AUTOMATION
 -- ==========================================
 task.spawn(function()
+    -- Đợi kết quả check SA xong
     repeat task.wait(1) until StatusLabel.Text:find("SA:") and not StatusLabel.Text:find("Checking")
 
+    -- ====================================================
+    -- NHÁNH A: SA đã active → chạy getSA ngay, không cần farm gì
+    -- ====================================================
     if saActive then
         print("[P1] SA đã active ngay từ đầu → RunGetSA")
         RunGetSA()
         return
     end
 
+    -- ====================================================
+    -- NHÁNH B: SA chưa active → kiểm tra và farm nguyên liệu
+    -- ====================================================
     print("[P1B] SA chưa active → Check nguyên liệu...")
 
     local inv     = GetInventory()
     local dfCount = GetMaterialCount("Dark Fragment", inv)
 
     if dfCount >= 2 then
-        StatusLabel.Text       = "P1B: DF " .. dfCount .. "/2 ✅ → Tiếp..."
+        -- ==========================================
+        -- PHẦN 1C: ĐỦ DF → CHECK VAMPIRE FANG
+        -- ==========================================
+        StatusLabel.Text       = "P1B: DF " .. dfCount .. "/1 ✅ → Tiếp..."
         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        print("[P1B] Dark Fragment " .. dfCount .. "/1 → Đủ! Chuyển bước tiếp...")
 
         local vfCount = GetMaterialCount("Vampire Fang", inv)
 
         if vfCount >= 20 then
             StatusLabel.Text       = "P1C: VF " .. vfCount .. "/20 ✅ → P1D..."
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            print("[P1C] Vampire Fang " .. vfCount .. "/20 → Đủ! Chuyển P1D...")
 
             local dwCount = GetMaterialCount("Demonic Wisp", inv)
 
             if dwCount >= 20 then
+                -- Đủ tất cả materials, SA vẫn chưa active → đợi
                 StatusLabel.Text       = "P1D: DW " .. dwCount .. "/20 ✅ Đủ tất cả! Đợi SA..."
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                print("[P1D] Demonic Wisp đủ → Đủ tất cả! Đợi SA active...")
 
+                -- Đợi SA active rồi getSA
                 task.spawn(function()
                     while true do
                         task.wait(10)
@@ -883,6 +886,7 @@ task.spawn(function()
             else
                 StatusLabel.Text       = "P1D: DW " .. dwCount .. "/20 → Farm..."
                 StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                print("[P1D] Demonic Wisp " .. dwCount .. "/20 → Farm!")
 
                 task.spawn(function()
                     loadstring(game:HttpGet("https://raw.githubusercontent.com/longvu26092007-eng/ml7/refs/heads/main/ultmiaxrada.lua"))()
@@ -906,7 +910,7 @@ task.spawn(function()
                         local currentDW = GetMaterialCount("Demonic Wisp", checkInv)
                         local currentVF = GetMaterialCount("Vampire Fang",  checkInv)
                         local currentDF = GetMaterialCount("Dark Fragment", checkInv)
-                        StatusLabel.Text = string.format("P1D: DW %d/20 | VF %d/20 | DF %d/2", currentDW, currentVF, currentDF)
+                        StatusLabel.Text = string.format("P1D: DW %d/20 | VF %d/20 | DF %d/1", currentDW, currentVF, currentDF)
 
                         local saOk, saResult = pcall(function()
                             return COMMF_:InvokeServer("BuySanguineArt", true)
@@ -917,6 +921,7 @@ task.spawn(function()
                         if saActive then
                             StatusLabel.Text       = "P1D: SA Active! → GetSA..."
                             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            warn("[P1D] SA đã active trong lúc farm! Chạy getSA...")
                             RunGetSA()
                             break
                         end
@@ -935,6 +940,7 @@ task.spawn(function()
         else
             StatusLabel.Text       = "P1C: VF " .. vfCount .. "/20 → Farm..."
             StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+            print("[P1C] Vampire Fang " .. vfCount .. "/20 → Farm!")
 
             task.spawn(function()
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/longvu26092007-eng/ml7/refs/heads/main/ultmiaxrada.lua"))()
@@ -956,6 +962,7 @@ task.spawn(function()
                     if saActive then
                         StatusLabel.Text       = "P1C: SA Active! → GetSA..."
                         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        warn("[P1C] SA đã active trong lúc farm VF! Chạy getSA...")
                         RunGetSA()
                         break
                     end
@@ -984,15 +991,17 @@ task.spawn(function()
 
     else
         -- ==========================================
-        -- PHẦN 1B: CHƯA ĐỦ DF → FARM DARKBEARD
+        -- PHẦN 1B: CHƯA ĐỦ DF → FARM DARKBEARD (Source_SG Full)
         -- ==========================================
-        StatusLabel.Text       = "P1B: DF " .. dfCount .. "/2 → Farm Darkbeard..."
+        StatusLabel.Text       = "P1B: DF " .. dfCount .. "/1 → Farm Darkbeard..."
         StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        print("[P1B] Dark Fragment " .. dfCount .. "/1 → Chưa đủ, bật farm Darkbeard!")
 
+        -- Monitor: kick khi đủ DF hoặc SA active → getSA
         task.spawn(function()
             while task.wait(10) do
                 local currentDF = CheckMaterial("Dark Fragment")
-                StatusLabel.Text = "P1B: DF " .. currentDF .. "/2 | Farming Darkbeard..."
+                StatusLabel.Text = "P1B: DF " .. currentDF .. "/1 | Farming Darkbeard..."
 
                 local saOk, saResult = pcall(function()
                     return COMMF_:InvokeServer("BuySanguineArt", true)
@@ -1003,21 +1012,25 @@ task.spawn(function()
                 if saActive then
                     StatusLabel.Text       = "P1B: SA Active! → GetSA..."
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    warn("[P1B] SA đã active trong lúc farm DF! Chạy getSA...")
                     RunGetSA()
                     break
                 end
 
                 if currentDF >= 2 then
-                    StatusLabel.Text       = "P1B: DF 2/2 ✅ KICK!"
+                    StatusLabel.Text       = "P1B: DF 1/1 ✅ KICK!"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    print("[P1B] Dark Fragment đủ 2/2! Kick rejoin...")
                     task.wait(2)
-                    Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 2/2 Dark Fragment!\nRejoin để tiếp tục.")
+                    Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 1/1 Dark Fragment!\nRejoin để tiếp tục.")
                     break
                 end
             end
         end)
 
-        -- SOURCE_SG FARM LOOP
+        -- ==========================================
+        -- SOURCE_SG FULL DARK FRAGMENT FARM LOOP
+        -- ==========================================
         local all = 0
         spawn(function()
             while task.wait(0.2) do
