@@ -4,7 +4,7 @@
 getgenv().Team = "Pirates"
 getgenv().Key = getgenv().Key or "NHAP_KEY_VAO_DAY"
 getgenv().Settings = {
-    ["Max Chests"] = 25;
+    ["Max Chests"] = 45;
     ["Reset After Collect Chests"] = 10;
 }
 
@@ -998,6 +998,8 @@ task.spawn(function()
         print("[P1B] Dark Fragment " .. dfCount .. "/1 → Chưa đủ, bật farm Darkbeard!")
 
         -- Monitor: kick khi đủ DF hoặc SA active → getSA
+        -- + Watchdog: chống kẹt khi farm đủ chest nhưng hop fail
+        local _lastHopAttempt = 0
         task.spawn(function()
             while task.wait(10) do
                 local currentDF = CheckMaterial("Dark Fragment")
@@ -1024,6 +1026,27 @@ task.spawn(function()
                     task.wait(2)
                     Player:Kick("\n[ VFAndSA Kaitun ]\nĐã đủ 1/1 Dark Fragment!\nRejoin để tiếp tục.")
                     break
+                end
+
+                -- Watchdog: nếu đã farm đủ chest mà vẫn ở server cũ → force hop lại
+                if getgenv().Settings and type(getgenv().Settings["Max Chests"]) == "number" then
+                    local chestsDone = true
+                    pcall(function()
+                        local tagged = CollectionService:GetTagged("_ChestTagged")
+                        local touchable = 0
+                        for _, v in next, tagged do
+                            if v and v.CanTouch then touchable = touchable + 1 end
+                        end
+                        if touchable > 3 then chestsDone = false end
+                    end)
+                    if chestsDone and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
+                        if tick() - _lastHopAttempt > 30 then
+                            _lastHopAttempt = tick()
+                            warn("[Watchdog] Phát hiện kẹt server (hết chest, không có mob/item) → Force hop!")
+                            StatusLabel.Text = "P1B: Watchdog → Force Hop..."
+                            pcall(function() HopServer("Watchdog - stuck server") end)
+                        end
+                    end
                 end
             end
         end)
