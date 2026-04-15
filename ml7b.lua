@@ -12,7 +12,7 @@ getgenv().Settings = {
 -- [ HOP CONFIG - CHỈNH Ở ĐÂY ]
 -- ==========================================
 getgenv().HOP_CONFIG = {
-    MaxPlayers    = 7,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
+    MaxPlayers    = 8,       -- Chỉ hop vào server < MaxPlayers người (nil = bỏ qua)
     ForcedRegion  = nil,     -- Ép region: "US", "EU", "AP" (nil = bỏ qua)
     MaxRetries    = 10,      -- Số lần thử tối đa
     RetryDelay    = 1,       -- Giây chờ giữa mỗi lần thử
