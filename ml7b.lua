@@ -216,45 +216,54 @@ FastAttack = function(x)
     lastCallFA = tick()
 end
 
--- ==========================================
--- [ HOP SERVER - DÙNG HOP_CONFIG ]
--- ==========================================
+-- ======================================================================
+-- [ HOP SERVER - DRACO HUNTER V17.3 (NGUYÊN BẢN) ]
+-- Chỉ dùng __ServerBrowser, giữ nguyên logic V17.3
+-- ======================================================================
 local function IfTableHaveIndex(j)
-    for _ in j do return true end
+    for _ in j do
+        return true
+    end
 end
 
 local LastServersDataPulled, CachedServers
-GetServers = function()
-    local cfg = getgenv().HOP_CONFIG
+
+local function GetServers()
     if LastServersDataPulled then
-        if os.time() - LastServersDataPulled < (cfg.CacheDuration or 60) then return CachedServers end
+        if os.time() - LastServersDataPulled < getgenv().HOP_CONFIG.CacheDuration then
+            return CachedServers
+        end
     end
-    for i = 1, (cfg.MaxPages or 100) do
+
+    for i = 1, getgenv().HOP_CONFIG.MaxPages do
         local ok, data = pcall(function()
             return ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer(i)
         end)
+
         if ok and data and IfTableHaveIndex(data) then
             LastServersDataPulled = os.time()
             CachedServers = data
             return data
         end
     end
+
     warn("[HOP] Không lấy được danh sách server!")
     return nil
 end
 
-HopServer = function(Reason, MaxPlayers, ForcedRegion)
-    local cfg = getgenv().HOP_CONFIG
-    -- Ưu tiên tham số truyền vào, fallback về HOP_CONFIG
-    MaxPlayers   = MaxPlayers   or cfg.MaxPlayers
-    ForcedRegion = ForcedRegion or cfg.ForcedRegion
+local function HopServer(Reason, MaxPlayers, ForcedRegion)
+    -- Ưu tiên tham số truyền vào, nếu không thì lấy từ config
+    MaxPlayers   = MaxPlayers   or getgenv().HOP_CONFIG.MaxPlayers
+    ForcedRegion = ForcedRegion or getgenv().HOP_CONFIG.ForcedRegion
 
     local Servers = GetServers()
     if not Servers then
-        warn("[HOP] Không có dữ liệu server, hop random...")
+        warn("[HOP] Không có dữ liệu server, thử hop random bằng TeleportService...")
         TeleportService:Teleport(PlaceId, LocalPlayer)
         return
     end
+
+    -- Chuyển dictionary → mảng, loại bỏ server hiện tại
     local ArrayServers = {}
     for id, v in Servers do
         if id ~= JobId then
@@ -266,47 +275,107 @@ HopServer = function(Reason, MaxPlayers, ForcedRegion)
             })
         end
     end
+
     print("[HOP] Nhận được", #ArrayServers, "servers")
+
     if #ArrayServers == 0 then
-        warn("[HOP] Danh sách rỗng, hop random...")
+        warn("[HOP] Danh sách server rỗng, hop random...")
         TeleportService:Teleport(PlaceId, LocalPlayer)
         return
     end
 
-    -- Lọc theo MaxPlayers và ForcedRegion
+    -- Lọc server theo điều kiện
     local FilteredServers = {}
     for _, server in ipairs(ArrayServers) do
-        local passPlayers = not MaxPlayers or server.Players < MaxPlayers
-        local passRegion  = not ForcedRegion or server.Region == ForcedRegion
+        local passPlayers = true
+        local passRegion  = true
+
+        if MaxPlayers and server.Players >= MaxPlayers then
+            passPlayers = false
+        end
+
+        if ForcedRegion and server.Region ~= ForcedRegion then
+            passRegion = false
+        end
+
         if passPlayers and passRegion then
             table.insert(FilteredServers, server)
         end
     end
 
-    print("[HOP] Sau lọc:", #FilteredServers, "servers",
+    print("[HOP] Sau lọc:", #FilteredServers, "servers phù hợp",
         "(MaxPlayers <", tostring(MaxPlayers) .. ",",
         "Region:", tostring(ForcedRegion) .. ")")
 
-    -- Fallback 1: bỏ region, giữ MaxPlayers
+    -- Nếu không có server nào phù hợp, nới lỏng điều kiện
     if #FilteredServers == 0 then
-        warn("[HOP] Không khớp filter, thử bỏ region...")
+        warn("[HOP] Không có server nào khớp filter, thử bỏ filter region...")
         for _, server in ipairs(ArrayServers) do
             if not MaxPlayers or server.Players < MaxPlayers then
                 table.insert(FilteredServers, server)
             end
         end
     end
-    -- Fallback 2: dùng hết
+
+    -- Vẫn không có → dùng toàn bộ
     if #FilteredServers == 0 then
-        warn("[HOP] Dùng toàn bộ danh sách...")
+        warn("[HOP] Vẫn không có server phù hợp, dùng toàn bộ danh sách...")
         FilteredServers = ArrayServers
     end
 
+    -- Chọn random từ danh sách đã lọc
     local ServerData = FilteredServers[math.random(1, #FilteredServers)]
-    print("[HOP] Đã chọn:", ServerData.JobId, "| Players:", ServerData.Players, "| Region:", ServerData.Region)
-    if Reason then print("[HOP] Lý do:", Reason) end
+
+    print("[HOP] Đã chọn server:", ServerData.JobId,
+        "| Players:", ServerData.Players,
+        "| Region:", ServerData.Region)
+
+    if Reason then
+        print("[HOP] Lý do:", Reason)
+    end
+
+    -- Teleport bằng __ServerBrowser
+    print("[HOP] Đang teleport đến", ServerData.JobId, "...")
     ReplicatedStorage:WaitForChild("__ServerBrowser"):InvokeServer('teleport', ServerData.JobId)
 end
+
+-- ==========================================
+-- ERROR HANDLING V17.3 (GLOBAL - GIỮ NGUYÊN TỪ V17.2)
+-- ==========================================
+TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
+    if teleportResult == Enum.TeleportResult.GameFull then
+        warn("[HOP] Server đầy, thử hop lại...")
+        task.delay(2, function()
+            HopServer("Retry - Server đầy")
+        end)
+    elseif teleportResult == Enum.TeleportResult.IsTeleporting
+        and (message:find("previous teleport")) then
+        StarterGui:SetCore("SendNotification", {
+            Title    = "Death Hop Found",
+            Text     = message,
+            Duration = 8
+        })
+        task.delay(10, function() game:Shutdown() end)
+    else
+        warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
+        task.delay(3, function()
+            HopServer("Retry - Teleport fail")
+        end)
+    end
+end)
+
+GuiService.ErrorMessageChanged:Connect(newcclosure(function()
+    if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
+        while true do
+            TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
+            task.wait(5)
+        end
+    end
+end))
+
+-- ======================================================================
+-- [ HẾT PHẦN HOP SERVER V17.3 ]
+-- ======================================================================
 
 local function getCFrame(v)
     if not v then return nil end
@@ -1031,7 +1100,7 @@ task.spawn(function()
                                         Tween(false)
                                         StatusLabel.Text = "P1B: Stopped - Found Special Item"
                                     end
-                                    if not CheckTool("Fist of Darkness") then HopServer() end
+                                    if not CheckTool("Fist of Darkness") then HopServer("Hết chest, hop server mới") end
                                 end
                             end
                         else
@@ -1041,25 +1110,5 @@ task.spawn(function()
                 end, function(err) warn(err) end)
             end
         end)
-
-        -- Error handling
-        TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
-            if teleportResult == Enum.TeleportResult.GameFull then
-                warn("[HOP] Server đầy, thử lại...")
-                task.delay(2, function() HopServer("Retry - Server đầy") end)
-            elseif teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
-                StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
-                task.delay(10, function() game:Shutdown() end)
-            else
-                warn("[HOP] Teleport thất bại:", tostring(teleportResult), message)
-                task.delay(3, function() HopServer("Retry - Teleport fail") end)
-            end
-        end)
-
-        GuiService.ErrorMessageChanged:Connect(newcclosure(function()
-            if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
-                while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
-            end
-        end))
     end
 end)
