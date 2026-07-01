@@ -118,7 +118,7 @@ repeat task.wait(2) until Character
 function CheckSea(v) return v == tonumber(workspace:GetAttribute("MAP"):match("%d+")) end
 
 local remoteAttack, idremote
-local seed = ReplicatedStorage.Modules.Net.seed:InvokeServer()
+local seed = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("seed"):InvokeServer()
 task.spawn(function()
     for _, v in next, {ReplicatedStorage.Util, ReplicatedStorage.Common, ReplicatedStorage.Remotes, ReplicatedStorage.Assets, ReplicatedStorage.FX} do
         for _, n in next, v:GetChildren() do
