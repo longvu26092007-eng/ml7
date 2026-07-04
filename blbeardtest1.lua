@@ -959,7 +959,8 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, mess
 end)
 
 GuiService.ErrorMessageChanged:Connect(newcclosure(function()
-    DBG.kick("GuiService Error: type=" .. tostring(GuiService:GetErrorType()) .. " | " .. tostring(GuiService:GetErrorMessage and GuiService:GetErrorMessage() or "?"))
+    local errType = tostring(GuiService:GetErrorType())
+    DBG.kick("GuiService Error: type=" .. errType)
     if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
         DBG.kick(">>> DISCONNECT/KICK xac nhan (DisconnectErrors). Xem cac dong TELEPORT XA / DEATH ngay tren de biet nguyen nhan.")
         while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
