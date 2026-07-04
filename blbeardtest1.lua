@@ -18,11 +18,13 @@ do
     local function def(k, v) if S[k] == nil then S[k] = v end end
     def("Team", "Pirates")                     -- Pirates / Marines
     def("Max Chests", 50)                       -- an du bao nhieu chest thi hop
-    def("Reset After Collect Chests", 10)       -- reset nhan vat sau N chest (anti-kick)
+    def("Reset After Collect Chests", 8)        -- reset nhan vat sau N chest (anti-kick)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
-    def("Ghost Retry Count", 3)                 -- so lan thu lai 1 chest ghost truoc khi bo
-    def("Skip Chest Delay", 0.5)                -- cho truoc khi bo ghost chest
+    def("Ghost Retry Count", 2)                 -- so lan thu lai 1 chest ghost truoc khi bo
+    def("Skip Chest Delay", 0.3)                -- cho truoc khi bo ghost chest
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
+    def("Chest Tween Speed", 400)               -- toc do bay toi chest (studs/s) - cao = nhanh
+    def("Chest Touch Radius", 10)               -- vao ban kinh nay thi firetouchinterest
 end
 
 -- ============================================================
@@ -415,62 +417,105 @@ local function _waitForChest(timeout)
     return false
 end
 
--- Tele den 1 chest, xu ly ghost.
+-- Bay toi 1 chest bang tween ghost (ANTI-CHEAT SAFE) + touch, xu ly ghost.
+-- Khong dung SetPrimaryPartCFrame (nhay instant -> security kick).
+-- Ghost part di chuyen muot, root bam theo moi frame + zero velocity chong fling detect.
 -- Tra ve: "collected" | "ghost" | "skip" | "died" | "stopped" | "timeout"
 local function _teleChest(chest, stopCondition)
     if not _isValidChest(chest) then return "skip" end
+    local root = HumanoidRootPart
     local humanoid = Character and Character:FindFirstChildWhichIsA("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return "died" end
+    if not root or not humanoid or humanoid.Health <= 0 then return "died" end
 
-    local ghostRetry = _cfg("Ghost Retry Count", 3)
-    local skipDelay  = _cfg("Skip Chest Delay", 0.5)
-    local timeout    = 8
+    local ghostRetry  = _cfg("Ghost Retry Count", 2)
+    local skipDelay   = _cfg("Skip Chest Delay", 0.3)
+    local speed       = _cfg("Chest Tween Speed", 400)
+    local touchRadius = _cfg("Chest Touch Radius", 10)
+
+    -- huy tween cu neu dang chay (tranh dinh nhau)
+    pcall(function() Tween(false) end)
+    humanoid.Sit = false
+
+    local distance   = (root.Position - chest.Position).Magnitude
+    local travelTime = math.clamp(distance / speed, 0.05, 2)
+    local timeout    = travelTime + 3
     local startTick  = tick()
+
+    -- ghost part de tween keo (path lien tuc -> anti-cheat khong flag)
+    local ghost = Instance.new("Part")
+    ghost.Name = "ChestPathGhost"
+    ghost.Transparency = 1
+    ghost.Anchored = true
+    ghost.CanCollide = false
+    ghost.Size = Vector3.new(4, 4, 4)
+    ghost.CFrame = root.CFrame
+    ghost.Parent = workspace
+
+    local tw = TweenService:Create(
+        ghost,
+        TweenInfo.new(travelTime, Enum.EasingStyle.Linear),
+        {CFrame = chest.CFrame * CFrame.new(0, 2, 0)}
+    )
+
+    -- bam root theo ghost moi frame + zero velocity chong fling/detect
+    local hb
+    hb = RunService.Heartbeat:Connect(function()
+        if not root or not root.Parent or not ghost or not ghost.Parent then return end
+        pcall(function()
+            humanoid.Sit = false
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+            root.CFrame = ghost.CFrame
+        end)
+    end)
+
+    tw:Play()
+
+    local result     = "timeout"
+    local touched    = false
     local retryCount = 0
 
     repeat
-        if not _isValidChest(chest) then return "collected" end
-        if not Character or not humanoid or humanoid.Health <= 0 then return "died" end
-        if stopCondition and stopCondition() then return "stopped" end
-        if tick() - startTick > timeout then return "timeout" end
+        task.wait()
+        if not _isValidChest(chest) then result = "collected" break end
+        if not Character or not humanoid or humanoid.Health <= 0 then result = "died" break end
+        if stopCondition and stopCondition() then result = "stopped" break end
 
-        -- Tele thang vao chest
-        pcall(function() Character:SetPrimaryPartCFrame(chest.CFrame) end)
-        task.wait(0.05)
-
-        -- Nhay trigger touch
-        PressKeyEvent("Space")
-        task.wait(0.1)
-
-        -- firetouchinterest chac chan hon
-        pcall(function()
-            local root = HumanoidRootPart
-            if root then
+        -- vao ban kinh -> firetouchinterest
+        if (root.Position - chest.Position).Magnitude <= touchRadius then
+            touched = true
+            pcall(function()
                 firetouchinterest(root, chest, 0)
-                task.wait(0.05)
+                task.wait(0.03)
                 firetouchinterest(root, chest, 1)
+            end)
+            task.wait(0.12)
+
+            -- verify chest bien mat = an duoc
+            if not _isValidChest(chest) then result = "collected" break end
+
+            -- con ton tai = ghost -> retry tai cho
+            retryCount += 1
+            if retryCount >= ghostRetry then
+                task.wait(skipDelay)
+                pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
+                result = "ghost" break
             end
-        end)
-        task.wait(0.2)
-
-        -- Verify: chest bien mat = an duoc
-        if not _isValidChest(chest) then return "collected" end
-
-        -- Con ton tai = ghost -> retry
-        retryCount += 1
-        if retryCount >= ghostRetry then
-            task.wait(skipDelay)
-            pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
-            return "ghost"
+            task.wait(0.15)
         end
-        task.wait(0.3)
-    until false
+    until tick() - startTick > timeout
+
+    pcall(function() tw:Cancel() end)
+    if hb then hb:Disconnect() end
+    if ghost then ghost:Destroy() end
+    return result
 end
 
 local all = 0
+local resetCounter = 0  -- dem chest tu lan reset gan nhat (giu qua cac batch)
 FarmBeli = function(stopCondition)
     local maxChests   = _cfg("Max Chests", 50)
-    local resetEvery  = _cfg("Reset After Collect Chests", 10)
+    local resetEvery  = _cfg("Reset After Collect Chests", 8)
     local waitTimeout = _cfg("Chest Wait Timeout", 12)
 
     if stopCondition and stopCondition() then return end
@@ -484,71 +529,76 @@ FarmBeli = function(stopCondition)
         return
     end
 
-    -- Detect chest, doi neu chua co
-    local chests = _getChestList()
-    if #chests == 0 then
-        print("Chest | Khong co chest, doi toi da " .. waitTimeout .. "s...")
-        if not _waitForChest(waitTimeout) then
-            if not (stopCondition and stopCondition()) and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
-                print("Chest | Het chest sau khi doi -> Hop")
-                HopServer("No chest after wait")
-            end
+    -- vong lap chinh (thay dequy -> tranh stack overflow)
+    while true do
+        if stopCondition and stopCondition() then return end
+        if all >= maxChests then
+            print("Chest | Du " .. maxChests .. " -> Hop")
+            HopServer("Max Chests")
             return
         end
-        chests = _getChestList()
-    end
 
-    -- Vong lap collect
-    local c = 0
-    for i, entry in next, chests do
-        local v = entry.obj
-        if _isValidChest(v) then
-            if stopCondition and stopCondition() then break end
-            if all >= maxChests then
-                print("Chest | Du " .. maxChests .. " -> Hop")
-                HopServer("Max Chests")
-                return
-            end
-
-            print(string.format("Chest | Batch: %d | Total: %d/%d | -> %s", c, all, maxChests, v.Name))
-
-            local result = _teleChest(v, stopCondition)
-
-            if result == "collected" then
-                c += 1 all += 1
-                print(string.format("Chest | OK Batch: %d | Total: %d/%d", c, all, maxChests))
-                if c >= resetEvery and not (stopCondition and stopCondition()) then
-                    local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
-                    if h and h.Health > 0 then
-                        print("Chest | Reset sau " .. resetEvery .. " chests...")
-                        h:ChangeState(Enum.HumanoidStateType.Dead)
-                        task.wait(1.5)
-                    end
-                    c = 0
+        -- detect chest, doi neu chua co
+        local chests = _getChestList()
+        if #chests == 0 then
+            print("Chest | Khong co chest, doi toi da " .. waitTimeout .. "s...")
+            if not _waitForChest(waitTimeout) then
+                if not (stopCondition and stopCondition()) and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
+                    print("Chest | Het chest sau khi doi -> Hop")
+                    HopServer("No chest after wait")
                 end
-            elseif result == "ghost" then
-                print("Chest | Ghost: " .. v.Name .. " -> Skip")
-            elseif result == "died" or result == "stopped" then
                 return
-            elseif result == "timeout" then
-                print("Chest | Timeout: " .. v.Name .. " -> Skip")
             end
-
-            if stopCondition and stopCondition() then break end
+            chests = _getChestList()
         end
-        if i % 250 == 0 then task.wait(0.1) end
-    end
 
-    -- Sau batch: con chest moi thi tiep, khong thi hop
-    if not (stopCondition and stopCondition()) and all < maxChests then
-        if #_getChestList() > 0 then
-            FarmBeli(stopCondition)
+        -- collect het batch hien tai
+        for i, entry in next, chests do
+            local v = entry.obj
+            if _isValidChest(v) then
+                if stopCondition and stopCondition() then return end
+                if all >= maxChests then
+                    print("Chest | Du " .. maxChests .. " -> Hop")
+                    HopServer("Max Chests")
+                    return
+                end
+
+                local result = _teleChest(v, stopCondition)
+
+                if result == "collected" then
+                    all += 1
+                    resetCounter += 1
+                    print(string.format("Chest | OK | Total: %d/%d", all, maxChests))
+                    if resetCounter >= resetEvery and not (stopCondition and stopCondition()) then
+                        local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
+                        if h and h.Health > 0 then
+                            print("Chest | Reset sau " .. resetEvery .. " chests (anti-kick)...")
+                            h:ChangeState(Enum.HumanoidStateType.Dead)
+                            task.wait(1.5)
+                        end
+                        resetCounter = 0
+                    end
+                elseif result == "ghost" then
+                    print("Chest | Ghost: " .. v.Name .. " -> Skip")
+                elseif result == "died" or result == "stopped" then
+                    return
+                elseif result == "timeout" then
+                    print("Chest | Timeout: " .. v.Name .. " -> Skip")
+                end
+            end
+            if i % 100 == 0 then task.wait(0.1) end
+        end
+
+        -- het batch: con chest moi thi lap tiep, khong thi hop
+        if stopCondition and stopCondition() then return end
+        if #_getChestList() == 0 then
+            if not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
+                print("Chest | Het chest -> Hop")
+                HopServer("No chest left")
+            end
             return
         end
-        if not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
-            print("Chest | Het chest -> Hop")
-            HopServer("No chest left")
-        end
+        -- else: quay lai dau while, collect batch moi
     end
 end
 
