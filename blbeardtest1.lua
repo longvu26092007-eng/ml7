@@ -25,6 +25,8 @@ do
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
     def("Chest Tween Speed", 400)               -- toc do bay toi chest (studs/s) - cao = nhanh
     def("Chest Touch Radius", 10)               -- vao ban kinh nay thi firetouchinterest
+    def("Debug", true)                          -- ghi log debug ra file (ChestBP_Debug/)
+    def("Ghost Model Radius", 14)               -- ban kinh quet model xuat hien quanh chest
 end
 
 -- ============================================================
@@ -384,15 +386,166 @@ TeleportSea = function(sea, msg)
 end
 
 -- ============================================================
--- CHEST: tele thang + FIX GHOST
+-- DEBUG LOGGER (ghi ra file de gui lai fix)
+-- ============================================================
+-- Yeu cau executor co: writefile, appendfile, isfolder, makefolder (hau het co)
+local DBG = {}
+do
+    local hasFS = (type(writefile) == "function") and (type(appendfile) == "function")
+    local folder = "ChestBP_Debug"
+    local sessionFile = folder .. "/session.log"
+    local ghostFile   = folder .. "/ghost_chests.log"
+    local enabled = (getgenv().Settings["Debug"] ~= false) and hasFS
+
+    if enabled then
+        pcall(function()
+            if type(isfolder) == "function" and not isfolder(folder) then
+                if type(makefolder) == "function" then makefolder(folder) end
+            end
+            writefile(sessionFile, "=== ChestBP Debug Session ===\n")
+            if type(isfile) == "function" and not isfile(ghostFile) then
+                writefile(ghostFile, "=== GHOST CHESTS (rương lỗi) ===\n")
+            end
+        end)
+    end
+
+    local function stamp()
+        -- os.time() -> gio tuong doi, du de doi chieu thu tu su kien
+        return "[" .. tostring(os.time()) .. "] "
+    end
+
+    function DBG.log(msg)
+        if enabled then pcall(function() appendfile(sessionFile, stamp() .. msg .. "\n") end) end
+        print("[ChestBP]", msg)
+    end
+
+    -- lay full path cua 1 instance (Game.Workspace.Enemies...)
+    function DBG.fullPath(inst)
+        if not inst then return "nil" end
+        local ok, path = pcall(function() return inst:GetFullName() end)
+        if ok then return path end
+        return tostring(inst)
+    end
+
+    -- dump toan bo cay con + thuoc tinh cua 1 model/part ra chuoi
+    function DBG.dumpTree(inst, depth, lines)
+        lines = lines or {}
+        depth = depth or 0
+        if not inst then return lines end
+        local indent = string.rep("  ", depth)
+        local extra = ""
+        pcall(function()
+            if inst:IsA("BasePart") then
+                extra = string.format(
+                    " | Pos=%s Size=%s CanTouch=%s CanCollide=%s Transparency=%.2f Anchored=%s",
+                    tostring(inst.Position), tostring(inst.Size),
+                    tostring(inst.CanTouch), tostring(inst.CanCollide),
+                    inst.Transparency, tostring(inst.Anchored)
+                )
+            end
+        end)
+        lines[#lines + 1] = string.format("%s[%s] %s%s", indent, inst.ClassName, inst.Name, extra)
+        -- attributes
+        pcall(function()
+            for k, v in pairs(inst:GetAttributes()) do
+                lines[#lines + 1] = string.format("%s   @attr %s = %s", indent, tostring(k), tostring(v))
+            end
+        end)
+        -- tags
+        pcall(function()
+            local tags = CollectionService:GetTags(inst)
+            if #tags > 0 then
+                lines[#lines + 1] = string.format("%s   #tags = %s", indent, table.concat(tags, ", "))
+            end
+        end)
+        if depth < 4 then
+            for _, child in ipairs(inst:GetChildren()) do
+                DBG.dumpTree(child, depth + 1, lines)
+            end
+        end
+        return lines
+    end
+
+    -- ghi lai 1 rương ghost: full path + cay con + moi thu quanh no
+    function DBG.dumpGhost(chest, reason)
+        if not enabled then
+            print("[ChestBP] GHOST:", DBG.fullPath(chest), "|", reason)
+            return
+        end
+        pcall(function()
+            local out = {}
+            out[#out+1] = "\n" .. string.rep("=", 60)
+            out[#out+1] = stamp() .. "GHOST CHEST | reason: " .. tostring(reason)
+            out[#out+1] = "FullPath : " .. DBG.fullPath(chest)
+            out[#out+1] = "Parent   : " .. DBG.fullPath(chest and chest.Parent)
+            if chest then
+                out[#out+1] = "ClassName: " .. chest.ClassName
+                out[#out+1] = "Name     : " .. chest.Name
+                pcall(function() out[#out+1] = "Position : " .. tostring(chest.Position) end)
+                pcall(function() out[#out+1] = "CanTouch : " .. tostring(chest.CanTouch) end)
+            end
+            -- cay con cua rương
+            out[#out+1] = "-- Tree of chest --"
+            for _, l in ipairs(DBG.dumpTree(chest)) do out[#out+1] = l end
+            -- quet moi Model/Part xuat hien quanh rương (nghi la model ghost)
+            local pos = chest and chest.Position
+            if pos then
+                out[#out+1] = "-- Nearby instances (ban kinh " .. tostring(getgenv().Settings["Ghost Model Radius"]) .. ") --"
+                local r = tonumber(getgenv().Settings["Ghost Model Radius"]) or 14
+                for _, d in ipairs({workspace}) do
+                    for _, obj in ipairs(d:GetDescendants()) do
+                        if obj:IsA("BasePart") and obj ~= chest then
+                            local ok, mag = pcall(function() return (obj.Position - pos).Magnitude end)
+                            if ok and mag <= r then
+                                out[#out+1] = string.format("  ~%.1f | %s | %s", mag, obj.ClassName, DBG.fullPath(obj))
+                            end
+                        end
+                    end
+                end
+            end
+            appendfile(ghostFile, table.concat(out, "\n") .. "\n")
+        end)
+        print("[ChestBP] GHOST logged ->", folder .. "/ghost_chests.log |", DBG.fullPath(chest))
+    end
+
+    DBG.enabled = enabled
+    if not hasFS then
+        warn("[ChestBP] Executor khong ho tro writefile -> debug chi in ra console")
+    end
+end
+
+-- ============================================================
+-- CHEST: bay toi + FIX GHOST + DEBUG
 -- ============================================================
 local function _cfg(key, default)
     local v = getgenv().Settings and getgenv().Settings[key]
     return (v ~= nil) and tonumber(v) or default
 end
 
+-- blacklist rương ghost da gap: khong bao gio cham lai (chong kick)
+local _ghostSeen = {}
+
 local function _isValidChest(v)
     return v and v.Parent and v:IsA("BasePart") and v.CanTouch and v.Name:find("Chest")
+        and not _ghostSeen[v]   -- da xac dinh ghost -> bo qua, khong cham lai
+end
+
+-- Dau hieu GHOST: sau khi cham, 1 Model xuat hien ngay canh chest.
+-- (chest that bien mat luon; chest loi giu nguyen + spawn model rong).
+-- Tra ve model neu phat hien, nil neu khong.
+local function _ghostModelNear(chest)
+    if not chest or not chest.Parent then return nil end
+    local pos = chest.Position
+    local r = tonumber(getgenv().Settings["Ghost Model Radius"]) or 14
+    for _, obj in ipairs(chest.Parent:GetChildren()) do
+        if obj:IsA("Model") and obj ~= chest then
+            local ok, prim = pcall(function() return obj:GetPivot().Position end)
+            if ok and (prim - pos).Magnitude <= r then
+                return obj
+            end
+        end
+    end
+    return nil
 end
 
 local function _getChestList()
@@ -472,7 +625,6 @@ local function _teleChest(chest, stopCondition)
     tw:Play()
 
     local result     = "timeout"
-    local touched    = false
     local retryCount = 0
 
     repeat
@@ -481,9 +633,8 @@ local function _teleChest(chest, stopCondition)
         if not Character or not humanoid or humanoid.Health <= 0 then result = "died" break end
         if stopCondition and stopCondition() then result = "stopped" break end
 
-        -- vao ban kinh -> firetouchinterest
+        -- vao ban kinh -> firetouchinterest 1 lan
         if (root.Position - chest.Position).Magnitude <= touchRadius then
-            touched = true
             pcall(function()
                 firetouchinterest(root, chest, 0)
                 task.wait(0.03)
@@ -491,14 +642,25 @@ local function _teleChest(chest, stopCondition)
             end)
             task.wait(0.12)
 
-            -- verify chest bien mat = an duoc
+            -- (1) chest bien mat = AN DUOC (khong hien model)
             if not _isValidChest(chest) then result = "collected" break end
 
-            -- con ton tai = ghost -> retry tai cho
+            -- (2) chest CON + co MODEL hien len canh no = GHOST that (rương lỗi)
+            --     -> bail NGAY, blacklist, dump debug. KHONG retry (retry = bi kick)
+            local gm = _ghostModelNear(chest)
+            if gm then
+                _ghostSeen[chest] = true
+                pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
+                DBG.dumpGhost(chest, "model xuat hien sau khi cham: " .. DBG.fullPath(gm))
+                result = "ghost" break
+            end
+
+            -- (3) chest con nhung CHUA thay model -> co the lag mang, thu lai it lan
             retryCount += 1
             if retryCount >= ghostRetry then
-                task.wait(skipDelay)
+                _ghostSeen[chest] = true
                 pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
+                DBG.dumpGhost(chest, "het retry (" .. ghostRetry .. ") van con, khong hien model")
                 result = "ghost" break
             end
             task.wait(0.15)
@@ -568,22 +730,22 @@ FarmBeli = function(stopCondition)
                 if result == "collected" then
                     all += 1
                     resetCounter += 1
-                    print(string.format("Chest | OK | Total: %d/%d", all, maxChests))
+                    DBG.log(string.format("OK collected | Total: %d/%d | %s", all, maxChests, DBG.fullPath(v)))
                     if resetCounter >= resetEvery and not (stopCondition and stopCondition()) then
                         local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
                         if h and h.Health > 0 then
-                            print("Chest | Reset sau " .. resetEvery .. " chests (anti-kick)...")
+                            DBG.log("Reset sau " .. resetEvery .. " chests (anti-kick)...")
                             h:ChangeState(Enum.HumanoidStateType.Dead)
                             task.wait(1.5)
                         end
                         resetCounter = 0
                     end
                 elseif result == "ghost" then
-                    print("Chest | Ghost: " .. v.Name .. " -> Skip")
+                    DBG.log("GHOST skip -> blacklist | " .. DBG.fullPath(v))
                 elseif result == "died" or result == "stopped" then
                     return
                 elseif result == "timeout" then
-                    print("Chest | Timeout: " .. v.Name .. " -> Skip")
+                    DBG.log("Timeout skip | " .. DBG.fullPath(v))
                 end
             end
             if i % 100 == 0 then task.wait(0.1) end
