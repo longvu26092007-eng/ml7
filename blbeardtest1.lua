@@ -25,7 +25,8 @@ do
     def("Collected Cooldown Radius", 12)        -- ban kinh coi la "cung mot chest" khi check cooldown (studs)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
-    def("Max Jump Distance", 100000)            -- teleport toi da toi chest (studs). Lon = nhat ca dao khac; nho = chi nhat quanh cho dung
+    def("Max Jump Distance", 5000)              -- teleport toi da toi chest DA LOAD (studs). Chest o dao khac bi StreamingEnabled do vao ReplicatedStorage.Unloaded -> da loc rieng, khong dung so nay de voi toi
+    def("Far Jump Warn", 2500)                  -- nhay xa hon nay -> ghi vao kick_history.log (nghi te chet/kick do teleport xa)
     def("Chest Interval", 0.1)                  -- nghi giua 2 rương (giay) - gian cach teleport, chong kick
     def("Collect Verify Time", 0.6)             -- toi da cho 1 rương truoc khi bo (giay)
     def("Debug", true)                          -- ghi log debug ra file (ChestBP_Debug/)
@@ -512,6 +513,21 @@ do
         print("[ChestBP] GHOST logged ->", folder .. "/ghost_chests.log |", DBG.fullPath(chest))
     end
 
+    -- ghi log rieng ve nghi van KICK/DISCONNECT: teleport xa, chet lien tuc, mat ket noi.
+    -- Muc dich: sau khi bi kick, mo file nay xem su kien cuoi cung truoc luc dut -> biet vi sao.
+    local kickFile = folder .. "/kick_history.log"
+    if enabled then
+        pcall(function()
+            if type(isfile) == "function" and not isfile(kickFile) then
+                writefile(kickFile, "=== KICK / DISCONNECT HISTORY ===\n(moi lan chay se append; xem cac dong cuoi truoc khi bi kick)\n")
+            end
+        end)
+    end
+    function DBG.kick(msg)
+        if enabled then pcall(function() appendfile(kickFile, stamp() .. msg .. "\n") end) end
+        warn("[ChestBP][KICK?]", msg)
+    end
+
     DBG.enabled = enabled
     if not hasFS then
         warn("[ChestBP] Executor khong ho tro writefile -> debug chi in ra console")
@@ -557,6 +573,7 @@ end
 
 local function _isValidChest(v)
     return v and v.Parent and v:IsA("BasePart") and v.CanTouch and v.Name:find("Chest")
+        and v:IsDescendantOf(workspace)  -- QUAN TRONG: chest o dao khac bi StreamingEnabled do vao ReplicatedStorage.Unloaded. Teleport toi do = roi xuong hu khong -> chet -> respawn -> ghost hang loat -> kick. Chi nhat chest DA STREAM trong workspace.
         and not _ghostSeen[v]         -- da xac dinh ghost -> bo qua, khong cham lai
         and not _onCooldown(v.Position) -- vua an o cho nay -> cho respawn, tranh ghost gia
 end
@@ -639,10 +656,18 @@ local function _teleChest(chest, stopCondition)
     pcall(function() Tween(false) end)
     humanoid.Sit = false
 
+    local jumpDist = (root.Position - chest.Position).Magnitude
     if logPos then
         DBG.log(string.format("JUMP -> %s | chestPos(%s) playerPos(%s) dist=%.1f",
-            DBG.fullPath(chest), _v3(chest.Position), _v3(root.Position),
-            (root.Position - chest.Position).Magnitude))
+            DBG.fullPath(chest), _v3(chest.Position), _v3(root.Position), jumpDist))
+    end
+
+    -- DEBUG KICK: teleport xa la nghi van chinh gay kick (te vao vung chua stream -> chet -> respawn).
+    -- Ghi lai de sau khi bi kick con doi chieu: dist bao nhieu, toi chest nao.
+    local farWarn = _cfg("Far Jump Warn", 2500)
+    if jumpDist > farWarn then
+        DBG.kick(string.format("TELEPORT XA %.0f studs (>%d) -> %s | co the te vao vung chua load roi chet",
+            jumpDist, farWarn, DBG.fullPath(chest)))
     end
 
     local deadline = tick() + verifyTime
@@ -921,6 +946,7 @@ end)
 -- ERROR / DISCONNECT HANDLING
 -- ============================================================
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, message)
+    DBG.kick("TeleportInitFailed: " .. tostring(teleportResult) .. " | " .. tostring(message))
     if teleportResult == Enum.TeleportResult.GameFull then
         task.delay(2, function() HopServer("Retry - server full") end)
     elseif teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
@@ -933,10 +959,36 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, mess
 end)
 
 GuiService.ErrorMessageChanged:Connect(newcclosure(function()
+    DBG.kick("GuiService Error: type=" .. tostring(GuiService:GetErrorType()) .. " | " .. tostring(GuiService:GetErrorMessage and GuiService:GetErrorMessage() or "?"))
     if GuiService:GetErrorType() == Enum.ConnectionError.DisconnectErrors then
+        DBG.kick(">>> DISCONNECT/KICK xac nhan (DisconnectErrors). Xem cac dong TELEPORT XA / DEATH ngay tren de biet nguyen nhan.")
         while true do TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer) task.wait(5) end
     end
 end))
+
+-- DEBUG KICK: theo doi chet. Neu chet ngay sau teleport xa (roi vao vung chua load) -> ghi lai.
+-- Nhieu lan chet don dap la dau hieu sap bi kick (server nghi teleport bat thuong).
+task.spawn(function()
+    local lastDeath, deathBurst = 0, 0
+    local function hook(char)
+        local hum = char:FindFirstChildWhichIsA("Humanoid") or char:WaitForChild("Humanoid", 5)
+        if not hum then return end
+        hum.Died:Connect(function()
+            local now = os.clock()
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local posStr = hrp and _v3(hrp.Position) or "?"
+            if now - lastDeath < 5 then deathBurst += 1 else deathBurst = 1 end
+            lastDeath = now
+            DBG.kick(string.format("DEATH #%d (trong 5s) tai pos(%s) | Y=%s",
+                deathBurst, posStr, hrp and string.format("%.1f", hrp.Position.Y) or "?"))
+            if deathBurst >= 3 then
+                DBG.kick(">>> CHET DON DAP " .. deathBurst .. " lan/5s - rat de bi kick. Nghi do teleport chest xa vao vung chua stream.")
+            end
+        end)
+    end
+    if LocalPlayer.Character then hook(LocalPlayer.Character) end
+    LocalPlayer.CharacterAdded:Connect(hook)
+end)
 
 StarterGui:SetCore("SendNotification", {Title = "Chest BP", Text = "Started! Max Chests = " .. getgenv().Settings["Max Chests"], Duration = 5})
 print("[Chest BP] v4.0 Loaded & Running")
