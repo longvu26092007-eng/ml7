@@ -52,6 +52,7 @@ GuiService          = game:GetService("GuiService")
 TeleportService     = game:GetService("TeleportService")
 
 cloneref = cloneref or function(x) return x end
+newcclosure = newcclosure or function(f) return f end
 
 LocalPlayer = Players.LocalPlayer
 COMMF_ = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
@@ -135,10 +136,14 @@ end
 ChooseTeam()
 task.wait(2)
 
-repeat task.wait(2) until Character
+repeat
+    task.wait(2)
+until (
+    Character
     and Character:FindFirstChild("HumanoidRootPart")
     and Character:FindFirstChildWhichIsA("Humanoid")
     and Character:IsDescendantOf(workspace.Characters)
+)
 
 -- ============================================================
 -- HELPERS
@@ -243,7 +248,7 @@ end)
 -- ============================================================
 -- HOP SERVER V17.3
 -- ============================================================
-function IfTableHaveIndex(j) for _ in j do return true end end
+function IfTableHaveIndex(j) for _ in pairs(j or {}) do return true end return false end
 
 local LastServersDataPulled, CachedServers
 function GetServers()
@@ -275,7 +280,7 @@ HopServer = function(Reason, MaxPlayers, ForcedRegion)
     end
 
     local ArrayServers = {}
-    for id, v in Servers do
+    for id, v in pairs(Servers) do
         if id ~= JobId then
             table.insert(ArrayServers, {JobId = id, Players = v.Count, LastUpdate = v.__LastUpdate, Region = v.Region})
         end
@@ -949,7 +954,7 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, mess
     DBG.kick("TeleportInitFailed: " .. tostring(teleportResult) .. " | " .. tostring(message))
     if teleportResult == Enum.TeleportResult.GameFull then
         task.delay(2, function() HopServer("Retry - server full") end)
-    elseif teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
+    elseif teleportResult == Enum.TeleportResult.IsTeleporting and tostring(message):find("previous teleport") then
         StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
         task.delay(10, function() game:Shutdown() end)
     else
