@@ -23,7 +23,7 @@ do
     def("Max Consecutive Ghost", 12)            -- ghost lien tiep qua nguong -> hop server (server loi)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
-    def("Max Jump Distance", 3000)              -- nhay xa hon nay = xuyen dao -> reset+hop (chong kick)
+    def("Max Jump Distance", 100000)            -- teleport toi da toi chest (studs). Lon = nhat ca dao khac; nho = chi nhat quanh cho dung
     def("Chest Interval", 0.1)                  -- nghi giua 2 rương (giay) - gian cach teleport, chong kick
     def("Collect Verify Time", 0.6)             -- toi da cho 1 rương truoc khi bo (giay)
     def("Debug", true)                          -- ghi log debug ra file (ChestBP_Debug/)
