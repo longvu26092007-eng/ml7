@@ -17,15 +17,16 @@ do
     local S = getgenv().Settings
     local function def(k, v) if S[k] == nil then S[k] = v end end
     def("Team", "Pirates")                     -- Pirates / Marines
-    def("Max Chests", 40)                       -- an du bao nhieu chest thi hop
+    def("Max Chests", 50)                       -- an du bao nhieu chest thi hop
     def("Reset After Collect Chests", 8)        -- reset nhan vat sau N chest (anti-kick)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
-    def("Ghost Retry Count", 2)                 -- so lan thu lai 1 chest ghost truoc khi bo
-    def("Skip Chest Delay", 0.3)                -- cho truoc khi bo ghost chest
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
     def("Max Jump Distance", 3000)              -- nhay xa hon nay = xuyen dao -> reset+hop (chong kick)
-    def("Collect Verify Time", 1.4)             -- doi bao lau de xac nhan da an chest (giay)
+    def("Chest Interval", 0.1)                  -- cadence moi rương (giay) - poll + toi thieu giua 2 rương
+    def("Collect Verify Time", 0.6)             -- toi da cho 1 rương truoc khi bo (giay)
+    def("Retp When Drift", 8)                   -- neu bi day ra xa chest hon nay (studs) thi teleport lai
     def("Debug", true)                          -- ghi log debug ra file (ChestBP_Debug/)
+    def("Debug Position", true)                 -- log chi tiet vi tri player moi lan nhay/poll
     def("Ghost Model Radius", 14)               -- ban kinh quet model xuat hien quanh chest (chi debug)
 end
 
@@ -570,23 +571,29 @@ local function _waitForChest(timeout)
     return false
 end
 
--- Dau hieu DA AN CHEST: loot van ra o _WorldOrigin (Silver/Gold/BounceLoot/Lid).
--- Tu debug log: khi an duoc, cac Part nay xuat hien sat vi tri chest.
-local function _lootAppeared()
+-- Dau hieu DA AN CHEST: loot van ra ngay TAI VI TRI chest (Silver/Gold/BounceLoot/Lid).
+-- Check theo khoang cach de tranh loot cu con sot lai o cho khac.
+local function _lootNearChest(chest)
     local wo = workspace:FindFirstChild("_WorldOrigin")
-    if not wo then return false end
+    if not wo or not chest then return false end
+    local pos = chest.Position
     for _, o in ipairs(wo:GetChildren()) do
         local n = o.Name
-        if n == "Silver" or n == "Gold" or n == "BounceLoot"
-            or n == "SilverLid" or n == "GoldLid" then
-            return true
+        if (n == "Silver" or n == "Gold" or n == "BounceLoot"
+            or n == "SilverLid" or n == "GoldLid") and o:IsA("BasePart") then
+            if (o.Position - pos).Magnitude <= 12 then return true end
         end
     end
     return false
 end
 
--- NHAY 1 PHAT toi chest (instant) + touch + verify.
--- Khong tween. Zero velocity vai frame chong fling.
+-- format vector3 gon cho log
+local function _v3(v) return string.format("%.1f, %.1f, %.1f", v.X, v.Y, v.Z) end
+
+-- NHAY CHEST SIEU NHANH (logic tu SG.txt) - CHONG GIAT:
+-- Teleport 1 lan len chest + jump, KHONG spam SetPrimaryPartCFrame moi frame
+-- (spam moi frame = server giang vi tri -> rubber-band/giat). Chi TP lai khi bi day ra xa.
+-- Poll 0.1s. Log vi tri player de debug giat.
 -- Tra ve: "collected" | "ghost" | "skip" | "died" | "stopped"
 local function _teleChest(chest, stopCondition)
     if not _isValidChest(chest) then return "skip" end
@@ -595,49 +602,69 @@ local function _teleChest(chest, stopCondition)
     if not root or not humanoid or humanoid.Health <= 0 then return "died" end
     if stopCondition and stopCondition() then return "stopped" end
 
-    local verifyTime = _cfg("Collect Verify Time", 1.4)
+    local verifyTime = _cfg("Collect Verify Time", 0.6)
+    local interval   = _cfg("Chest Interval", 0.1)
+    local driftMax   = _cfg("Retp When Drift", 8)
+    local logPos     = _cfg("Debug Position", true)
 
     pcall(function() Tween(false) end)
     humanoid.Sit = false
 
-    -- nhay instant den ngay tren chest
-    local targetCF = chest.CFrame * CFrame.new(0, 2, 0)
-    pcall(function()
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        root.CFrame = targetCF
-    end)
+    local startPos = root.Position
+    local startDist = (startPos - chest.Position).Magnitude
+    if logPos then
+        DBG.log(string.format("JUMP -> %s | chestPos(%s) playerPos(%s) dist=%.1f",
+            DBG.fullPath(chest), _v3(chest.Position), _v3(startPos), startDist))
+    end
 
-    -- giu vi tri + zero velocity vai frame (chong fling / bi day ra)
-    local holdConn
-    holdConn = RunService.Heartbeat:Connect(function()
-        if not root or not root.Parent then return end
+    -- teleport LEN chest + ep jump (1 lan)
+    local function warpToChest()
         pcall(function()
-            humanoid.Sit = false
             root.AssemblyLinearVelocity = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
+            Character:SetPrimaryPartCFrame(chest.CFrame)
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         end)
-    end)
-
-    -- cham 1 lan (khong hammer)
+    end
+    warpToChest()
     pcall(function()
         firetouchinterest(root, chest, 0)
-        task.wait(0.05)
         firetouchinterest(root, chest, 1)
     end)
 
-    -- verify: doi chest bien mat / CanTouch tat / loot van ra
     local deadline = tick() + verifyTime
     local result = "ghost"
+    local polls = 0
     repeat
-        task.wait(0.1)
+        task.wait(interval)
+        polls += 1
         if not Character or not humanoid or humanoid.Health <= 0 then result = "died" break end
         if stopCondition and stopCondition() then result = "stopped" break end
+
+        -- da an? chest bien mat / loot van ra tai cho
         if not (chest and chest.Parent) or not chest.CanTouch then result = "collected" break end
-        if _lootAppeared() then result = "collected" break end
+        if _lootNearChest(chest) then result = "collected" break end
+
+        -- kiem tra drift: bi day ra xa chest -> teleport lai (khong spam moi frame)
+        local curPos = root.Position
+        local drift = (curPos - chest.Position).Magnitude
+        if logPos then
+            DBG.log(string.format("  poll#%d playerPos(%s) drift=%.1f state=%s",
+                polls, _v3(curPos), drift, tostring(humanoid:GetState())))
+        end
+        if drift > driftMax then
+            warpToChest()
+        end
+        pcall(function()
+            firetouchinterest(root, chest, 0)
+            firetouchinterest(root, chest, 1)
+        end)
     until tick() >= deadline
 
-    if holdConn then holdConn:Disconnect() end
+    if logPos then
+        DBG.log(string.format("RESULT=%s | %s | playerPos(%s)",
+            result, DBG.fullPath(chest), _v3(root.Position)))
+    end
 
     -- van con sau verifyTime = chest loi that -> blacklist, KHONG cham lai (chong kick)
     if result == "ghost" then
