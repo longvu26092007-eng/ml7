@@ -21,6 +21,8 @@ do
     def("Reset After Collect Chests", 8)        -- reset nhan vat sau N chest an duoc (anti-kick)
     def("Reset After Teleports", 15)            -- reset sau N lan teleport BAT KE ket qua (anti-kick chinh)
     def("Max Consecutive Ghost", 12)            -- ghost lien tiep qua nguong -> hop server (server loi)
+    def("Collected Cooldown", 45)               -- sau khi an, bo qua chest o dung cho do trong N giay (tranh nhat lai chest dang hoi loot -> ghost gia)
+    def("Collected Cooldown Radius", 12)        -- ban kinh coi la "cung mot chest" khi check cooldown (studs)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
     def("Max Jump Distance", 100000)            -- teleport toi da toi chest (studs). Lon = nhat ca dao khac; nho = chi nhat quanh cho dung
@@ -527,9 +529,36 @@ end
 -- blacklist rương ghost da gap: khong bao gio cham lai (chong kick)
 local _ghostSeen = {}
 
+-- vi tri vua an gan day: {pos = Vector3, t = tick()}. Sau khi an, chest vao cooldown
+-- respawn (Part con do, CanTouch bat lai) nhung chua ra loot -> neu nhat lai se bi
+-- tinh la ghost gia. Ta bo qua chest o dung cho do trong "Collected Cooldown" giay.
+local _collectedAt = {}
+
+local function _onCooldown(pos)
+    if not pos then return false end
+    local cd = _cfg("Collected Cooldown", 45)
+    if cd <= 0 then return false end
+    local r = _cfg("Collected Cooldown Radius", 12)
+    local now = tick()
+    for i = #_collectedAt, 1, -1 do
+        local e = _collectedAt[i]
+        if now - e.t > cd then
+            table.remove(_collectedAt, i)          -- het han -> don rac
+        elseif (e.pos - pos).Magnitude <= r then
+            return true
+        end
+    end
+    return false
+end
+
+local function _markCollected(pos)
+    if pos then _collectedAt[#_collectedAt + 1] = {pos = pos, t = tick()} end
+end
+
 local function _isValidChest(v)
     return v and v.Parent and v:IsA("BasePart") and v.CanTouch and v.Name:find("Chest")
-        and not _ghostSeen[v]   -- da xac dinh ghost -> bo qua, khong cham lai
+        and not _ghostSeen[v]         -- da xac dinh ghost -> bo qua, khong cham lai
+        and not _onCooldown(v.Position) -- vua an o cho nay -> cho respawn, tranh ghost gia
 end
 
 -- Dau hieu GHOST: sau khi cham, 1 Model xuat hien ngay canh chest.
@@ -774,6 +803,7 @@ FarmBeli = function(stopCondition)
                     all += 1
                     resetCounter += 1
                     ghostStreak = 0  -- an duoc -> reset chuoi ghost
+                    _markCollected(v.Position)  -- ghi cho vua an -> cooldown, tranh nhat lai luc dang hoi loot
                     DBG.log(string.format("OK collected | Total: %d/%d | %s", all, maxChests, DBG.fullPath(v)))
                 elseif result == "ghost" then
                     ghostStreak += 1
