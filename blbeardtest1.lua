@@ -18,13 +18,14 @@ do
     local function def(k, v) if S[k] == nil then S[k] = v end end
     def("Team", "Pirates")                     -- Pirates / Marines
     def("Max Chests", 50)                       -- an du bao nhieu chest thi hop
-    def("Reset After Collect Chests", 8)        -- reset nhan vat sau N chest (anti-kick)
+    def("Reset After Collect Chests", 8)        -- reset nhan vat sau N chest an duoc (anti-kick)
+    def("Reset After Teleports", 15)            -- reset sau N lan teleport BAT KE ket qua (anti-kick chinh)
+    def("Max Consecutive Ghost", 12)            -- ghost lien tiep qua nguong -> hop server (server loi)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
     def("Max Jump Distance", 3000)              -- nhay xa hon nay = xuyen dao -> reset+hop (chong kick)
-    def("Chest Interval", 0.1)                  -- cadence moi rương (giay) - poll + toi thieu giua 2 rương
+    def("Chest Interval", 0.1)                  -- nghi giua 2 rương (giay) - gian cach teleport, chong kick
     def("Collect Verify Time", 0.6)             -- toi da cho 1 rương truoc khi bo (giay)
-    def("Retp When Drift", 8)                   -- neu bi day ra xa chest hon nay (studs) thi teleport lai
     def("Debug", true)                          -- ghi log debug ra file (ChestBP_Debug/)
     def("Debug Position", true)                 -- log chi tiet vi tri player moi lan nhay/poll
     def("Ghost Model Radius", 14)               -- ban kinh quet model xuat hien quanh chest (chi debug)
@@ -590,10 +591,11 @@ end
 -- format vector3 gon cho log
 local function _v3(v) return string.format("%.1f, %.1f, %.1f", v.X, v.Y, v.Z) end
 
--- NHAY CHEST SIEU NHANH (logic tu SG.txt) - CHONG GIAT:
--- Teleport 1 lan len chest + jump, KHONG spam SetPrimaryPartCFrame moi frame
--- (spam moi frame = server giang vi tri -> rubber-band/giat). Chi TP lai khi bi day ra xa.
--- Poll 0.1s. Log vi tri player de debug giat.
+-- NHAY CHEST (logic GOC tu SG.txt):
+-- SPAM SetPrimaryPartCFrame(chest.CFrame) + ChangeState(Jumping) MOI FRAME cho toi khi an.
+-- Day chinh la thu lam server ghi nhan touch (physics touch qua chuyen dong teleport-nhay).
+-- => Co giat nhe la binh thuong, do la cai gia de an duoc chest o game nay.
+-- Log vi tri player (throttle) de theo doi giat / drift.
 -- Tra ve: "collected" | "ghost" | "skip" | "died" | "stopped"
 local function _teleChest(chest, stopCondition)
     if not _isValidChest(chest) then return "skip" end
@@ -603,62 +605,52 @@ local function _teleChest(chest, stopCondition)
     if stopCondition and stopCondition() then return "stopped" end
 
     local verifyTime = _cfg("Collect Verify Time", 0.6)
-    local interval   = _cfg("Chest Interval", 0.1)
-    local driftMax   = _cfg("Retp When Drift", 8)
     local logPos     = _cfg("Debug Position", true)
 
     pcall(function() Tween(false) end)
     humanoid.Sit = false
 
-    local startPos = root.Position
-    local startDist = (startPos - chest.Position).Magnitude
     if logPos then
         DBG.log(string.format("JUMP -> %s | chestPos(%s) playerPos(%s) dist=%.1f",
-            DBG.fullPath(chest), _v3(chest.Position), _v3(startPos), startDist))
+            DBG.fullPath(chest), _v3(chest.Position), _v3(root.Position),
+            (root.Position - chest.Position).Magnitude))
     end
 
-    -- teleport LEN chest + ep jump (1 lan)
-    local function warpToChest()
+    local deadline = tick() + verifyTime
+    local result = "ghost"
+    local lastLog = 0
+    repeat
+        task.wait()  -- moi frame (giong SG) - KHONG dat interval o day
+        if not Character or not humanoid or humanoid.Health <= 0 then result = "died" break end
+        if stopCondition and stopCondition() then result = "stopped" break end
+
+        -- da an? chest bien mat / CanTouch tat / loot van ra tai cho
+        if not (chest and chest.Parent) or not chest.CanTouch then result = "collected" break end
+        if _lootNearChest(chest) then result = "collected" break end
+
+        -- SPAM moi frame: teleport CHINH XAC len chest + ep jump (nhu SG)
         pcall(function()
             root.AssemblyLinearVelocity = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
             Character:SetPrimaryPartCFrame(chest.CFrame)
-            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            local st = humanoid:GetState()
+            if humanoid.FloorMaterial ~= Enum.Material.Air
+                or not (st == Enum.HumanoidStateType.Jumping or st == Enum.HumanoidStateType.Dead) then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
         end)
-    end
-    warpToChest()
-    pcall(function()
-        firetouchinterest(root, chest, 0)
-        firetouchinterest(root, chest, 1)
-    end)
-
-    local deadline = tick() + verifyTime
-    local result = "ghost"
-    local polls = 0
-    repeat
-        task.wait(interval)
-        polls += 1
-        if not Character or not humanoid or humanoid.Health <= 0 then result = "died" break end
-        if stopCondition and stopCondition() then result = "stopped" break end
-
-        -- da an? chest bien mat / loot van ra tai cho
-        if not (chest and chest.Parent) or not chest.CanTouch then result = "collected" break end
-        if _lootNearChest(chest) then result = "collected" break end
-
-        -- kiem tra drift: bi day ra xa chest -> teleport lai (khong spam moi frame)
-        local curPos = root.Position
-        local drift = (curPos - chest.Position).Magnitude
-        if logPos then
-            DBG.log(string.format("  poll#%d playerPos(%s) drift=%.1f state=%s",
-                polls, _v3(curPos), drift, tostring(humanoid:GetState())))
-        end
-        if drift > driftMax then
-            warpToChest()
-        end
         pcall(function()
             firetouchinterest(root, chest, 0)
             firetouchinterest(root, chest, 1)
         end)
+
+        -- log vi tri throttle ~0.1s
+        if logPos and (tick() - lastLog) >= 0.1 then
+            lastLog = tick()
+            DBG.log(string.format("  playerPos(%s) drift=%.1f state=%s",
+                _v3(root.Position), (root.Position - chest.Position).Magnitude,
+                tostring(humanoid:GetState())))
+        end
     until tick() >= deadline
 
     if logPos then
@@ -672,14 +664,24 @@ local function _teleChest(chest, stopCondition)
         pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
         DBG.dumpGhost(chest, "khong an duoc sau " .. verifyTime .. "s -> blacklist")
     end
+
+    -- gian cach giua 2 rương (chong kick: khong teleport lien tuc khong nghi)
+    if result == "collected" or result == "ghost" then
+        local gap = _cfg("Chest Interval", 0.1)
+        if gap > 0 then task.wait(gap) end
+    end
     return result
 end
 
 local all = 0
-local resetCounter = 0  -- dem chest tu lan reset gan nhat (giu qua cac batch)
+local resetCounter = 0  -- dem chest an duoc tu lan reset gan nhat (giu qua cac batch)
+local tpCounter = 0     -- dem SO LAN teleport bat ke ket qua (anti-kick chinh)
+local ghostStreak = 0   -- dem ghost lien tiep (server loi -> hop)
 FarmBeli = function(stopCondition)
     local maxChests   = _cfg("Max Chests", 50)
     local resetEvery  = _cfg("Reset After Collect Chests", 8)
+    local resetTps    = _cfg("Reset After Teleports", 15)
+    local maxGhost    = _cfg("Max Consecutive Ghost", 12)
     local waitTimeout = _cfg("Chest Wait Timeout", 12)
 
     if stopCondition and stopCondition() then return end
@@ -763,23 +765,43 @@ FarmBeli = function(stopCondition)
 
                 local result = _teleChest(v, stopCondition)
 
+                -- dem moi lan teleport (bat ke ket qua) cho anti-kick
+                if result == "collected" or result == "ghost" then
+                    tpCounter += 1
+                end
+
                 if result == "collected" then
                     all += 1
                     resetCounter += 1
+                    ghostStreak = 0  -- an duoc -> reset chuoi ghost
                     DBG.log(string.format("OK collected | Total: %d/%d | %s", all, maxChests, DBG.fullPath(v)))
-                    if resetCounter >= resetEvery and not (stopCondition and stopCondition()) then
-                        local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
-                        if h and h.Health > 0 then
-                            DBG.log("Reset sau " .. resetEvery .. " chests (anti-kick)...")
-                            h:ChangeState(Enum.HumanoidStateType.Dead)
-                            task.wait(1.5)
-                        end
-                        resetCounter = 0
-                    end
                 elseif result == "ghost" then
-                    DBG.log("GHOST skip -> blacklist | " .. DBG.fullPath(v))
+                    ghostStreak += 1
+                    DBG.log(string.format("GHOST skip #%d -> blacklist | %s", ghostStreak, DBG.fullPath(v)))
+                    -- ghost lien tiep qua nhieu = server loi / dang bi treo -> hop ngay (chong kick)
+                    if ghostStreak >= maxGhost and not (stopCondition and stopCondition()) then
+                        DBG.log(string.format("Ghost lien tiep %d lan -> Hop (server loi)", ghostStreak))
+                        ghostStreak = 0
+                        HopServer("Too many consecutive ghosts")
+                        return
+                    end
                 elseif result == "died" or result == "stopped" then
                     return
+                end
+
+                -- ANTI-KICK CHINH: reset sau N teleport bat ke an duoc hay khong
+                -- (truoc day chi dem 'collected' -> khi toan ghost thi reset khong bao gio chay)
+                if (resetCounter >= resetEvery or tpCounter >= resetTps)
+                    and not (stopCondition and stopCondition()) then
+                    local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
+                    if h and h.Health > 0 then
+                        DBG.log(string.format("Reset anti-kick (collected=%d, teleports=%d)...", resetCounter, tpCounter))
+                        h:ChangeState(Enum.HumanoidStateType.Dead)
+                        task.wait(1.5)
+                        repeat task.wait(0.2) until Character and Character:FindFirstChild("HumanoidRootPart")
+                    end
+                    resetCounter = 0
+                    tpCounter = 0
                 end
             end
             if i % 100 == 0 then task.wait(0.1) end
