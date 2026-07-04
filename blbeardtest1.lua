@@ -17,16 +17,16 @@ do
     local S = getgenv().Settings
     local function def(k, v) if S[k] == nil then S[k] = v end end
     def("Team", "Pirates")                     -- Pirates / Marines
-    def("Max Chests", 50)                       -- an du bao nhieu chest thi hop
+    def("Max Chests", 40)                       -- an du bao nhieu chest thi hop
     def("Reset After Collect Chests", 8)        -- reset nhan vat sau N chest (anti-kick)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
     def("Ghost Retry Count", 2)                 -- so lan thu lai 1 chest ghost truoc khi bo
     def("Skip Chest Delay", 0.3)                -- cho truoc khi bo ghost chest
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
-    def("Chest Tween Speed", 400)               -- toc do bay toi chest (studs/s) - cao = nhanh
-    def("Chest Touch Radius", 10)               -- vao ban kinh nay thi firetouchinterest
+    def("Max Jump Distance", 3000)              -- nhay xa hon nay = xuyen dao -> reset+hop (chong kick)
+    def("Collect Verify Time", 1.4)             -- doi bao lau de xac nhan da an chest (giay)
     def("Debug", true)                          -- ghi log debug ra file (ChestBP_Debug/)
-    def("Ghost Model Radius", 14)               -- ban kinh quet model xuat hien quanh chest
+    def("Ghost Model Radius", 14)               -- ban kinh quet model xuat hien quanh chest (chi debug)
 end
 
 -- ============================================================
@@ -570,106 +570,81 @@ local function _waitForChest(timeout)
     return false
 end
 
--- Bay toi 1 chest bang tween ghost (ANTI-CHEAT SAFE) + touch, xu ly ghost.
--- Khong dung SetPrimaryPartCFrame (nhay instant -> security kick).
--- Ghost part di chuyen muot, root bam theo moi frame + zero velocity chong fling detect.
--- Tra ve: "collected" | "ghost" | "skip" | "died" | "stopped" | "timeout"
+-- Dau hieu DA AN CHEST: loot van ra o _WorldOrigin (Silver/Gold/BounceLoot/Lid).
+-- Tu debug log: khi an duoc, cac Part nay xuat hien sat vi tri chest.
+local function _lootAppeared()
+    local wo = workspace:FindFirstChild("_WorldOrigin")
+    if not wo then return false end
+    for _, o in ipairs(wo:GetChildren()) do
+        local n = o.Name
+        if n == "Silver" or n == "Gold" or n == "BounceLoot"
+            or n == "SilverLid" or n == "GoldLid" then
+            return true
+        end
+    end
+    return false
+end
+
+-- NHAY 1 PHAT toi chest (instant) + touch + verify.
+-- Khong tween. Zero velocity vai frame chong fling.
+-- Tra ve: "collected" | "ghost" | "skip" | "died" | "stopped"
 local function _teleChest(chest, stopCondition)
     if not _isValidChest(chest) then return "skip" end
     local root = HumanoidRootPart
     local humanoid = Character and Character:FindFirstChildWhichIsA("Humanoid")
     if not root or not humanoid or humanoid.Health <= 0 then return "died" end
+    if stopCondition and stopCondition() then return "stopped" end
 
-    local ghostRetry  = _cfg("Ghost Retry Count", 2)
-    local skipDelay   = _cfg("Skip Chest Delay", 0.3)
-    local speed       = _cfg("Chest Tween Speed", 400)
-    local touchRadius = _cfg("Chest Touch Radius", 10)
+    local verifyTime = _cfg("Collect Verify Time", 1.4)
 
-    -- huy tween cu neu dang chay (tranh dinh nhau)
     pcall(function() Tween(false) end)
     humanoid.Sit = false
 
-    local distance   = (root.Position - chest.Position).Magnitude
-    local travelTime = math.clamp(distance / speed, 0.05, 2)
-    local timeout    = travelTime + 3
-    local startTick  = tick()
+    -- nhay instant den ngay tren chest
+    local targetCF = chest.CFrame * CFrame.new(0, 2, 0)
+    pcall(function()
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = targetCF
+    end)
 
-    -- ghost part de tween keo (path lien tuc -> anti-cheat khong flag)
-    local ghost = Instance.new("Part")
-    ghost.Name = "ChestPathGhost"
-    ghost.Transparency = 1
-    ghost.Anchored = true
-    ghost.CanCollide = false
-    ghost.Size = Vector3.new(4, 4, 4)
-    ghost.CFrame = root.CFrame
-    ghost.Parent = workspace
-
-    local tw = TweenService:Create(
-        ghost,
-        TweenInfo.new(travelTime, Enum.EasingStyle.Linear),
-        {CFrame = chest.CFrame * CFrame.new(0, 2, 0)}
-    )
-
-    -- bam root theo ghost moi frame + zero velocity chong fling/detect
-    local hb
-    hb = RunService.Heartbeat:Connect(function()
-        if not root or not root.Parent or not ghost or not ghost.Parent then return end
+    -- giu vi tri + zero velocity vai frame (chong fling / bi day ra)
+    local holdConn
+    holdConn = RunService.Heartbeat:Connect(function()
+        if not root or not root.Parent then return end
         pcall(function()
             humanoid.Sit = false
             root.AssemblyLinearVelocity = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
-            root.CFrame = ghost.CFrame
         end)
     end)
 
-    tw:Play()
+    -- cham 1 lan (khong hammer)
+    pcall(function()
+        firetouchinterest(root, chest, 0)
+        task.wait(0.05)
+        firetouchinterest(root, chest, 1)
+    end)
 
-    local result     = "timeout"
-    local retryCount = 0
-
+    -- verify: doi chest bien mat / CanTouch tat / loot van ra
+    local deadline = tick() + verifyTime
+    local result = "ghost"
     repeat
-        task.wait()
-        if not _isValidChest(chest) then result = "collected" break end
+        task.wait(0.1)
         if not Character or not humanoid or humanoid.Health <= 0 then result = "died" break end
         if stopCondition and stopCondition() then result = "stopped" break end
+        if not (chest and chest.Parent) or not chest.CanTouch then result = "collected" break end
+        if _lootAppeared() then result = "collected" break end
+    until tick() >= deadline
 
-        -- vao ban kinh -> firetouchinterest 1 lan
-        if (root.Position - chest.Position).Magnitude <= touchRadius then
-            pcall(function()
-                firetouchinterest(root, chest, 0)
-                task.wait(0.03)
-                firetouchinterest(root, chest, 1)
-            end)
-            task.wait(0.12)
+    if holdConn then holdConn:Disconnect() end
 
-            -- (1) chest bien mat = AN DUOC (khong hien model)
-            if not _isValidChest(chest) then result = "collected" break end
-
-            -- (2) chest CON + co MODEL hien len canh no = GHOST that (rương lỗi)
-            --     -> bail NGAY, blacklist, dump debug. KHONG retry (retry = bi kick)
-            local gm = _ghostModelNear(chest)
-            if gm then
-                _ghostSeen[chest] = true
-                pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
-                DBG.dumpGhost(chest, "model xuat hien sau khi cham: " .. DBG.fullPath(gm))
-                result = "ghost" break
-            end
-
-            -- (3) chest con nhung CHUA thay model -> co the lag mang, thu lai it lan
-            retryCount += 1
-            if retryCount >= ghostRetry then
-                _ghostSeen[chest] = true
-                pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
-                DBG.dumpGhost(chest, "het retry (" .. ghostRetry .. ") van con, khong hien model")
-                result = "ghost" break
-            end
-            task.wait(0.15)
-        end
-    until tick() - startTick > timeout
-
-    pcall(function() tw:Cancel() end)
-    if hb then hb:Disconnect() end
-    if ghost then ghost:Destroy() end
+    -- van con sau verifyTime = chest loi that -> blacklist, KHONG cham lai (chong kick)
+    if result == "ghost" then
+        _ghostSeen[chest] = true
+        pcall(function() if chest and chest.Parent then chest.CanTouch = false end end)
+        DBG.dumpGhost(chest, "khong an duoc sau " .. verifyTime .. "s -> blacklist")
+    end
     return result
 end
 
@@ -690,6 +665,9 @@ FarmBeli = function(stopCondition)
         HopServer("Max Chests")
         return
     end
+
+    local maxJump = _cfg("Max Jump Distance", 3000)
+    local farResetTried = false  -- da thu reset vi chest qua xa chua
 
     -- vong lap chinh (thay dequy -> tranh stack overflow)
     while true do
@@ -714,6 +692,32 @@ FarmBeli = function(stopCondition)
             chests = _getChestList()
         end
 
+        -- CHONG KICK XUYEN DAO: chest gan nhat xa hon maxJump = khac dao
+        -- (list sort gan->xa, chests[1] la gan nhat)
+        if chests[1] and chests[1].dist > maxJump then
+            if not farResetTried then
+                DBG.log(string.format("Chest gan nhat xa %.0f studs (>%d) -> reset ve spawn dao", chests[1].dist, maxJump))
+                local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
+                if h and h.Health > 0 then
+                    h:ChangeState(Enum.HumanoidStateType.Dead)
+                    task.wait(2.5)
+                    repeat task.wait(0.2) until Character and Character:FindFirstChild("HumanoidRootPart")
+                end
+                farResetTried = true
+                -- cho char settle roi quay lai dau while, do lai khoang cach
+                task.wait(0.5)
+                continue
+            else
+                -- reset roi van xa -> server nay khong co chest gan, hop
+                DBG.log("Reset roi chest van xa -> Hop")
+                if not (stopCondition and stopCondition()) and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
+                    HopServer("Chest too far after reset")
+                end
+                return
+            end
+        end
+        farResetTried = false  -- da co chest gan -> reset lai co che
+
         -- collect het batch hien tai
         for i, entry in next, chests do
             local v = entry.obj
@@ -723,6 +727,11 @@ FarmBeli = function(stopCondition)
                     print("Chest | Du " .. maxChests .. " -> Hop")
                     HopServer("Max Chests")
                     return
+                end
+
+                -- bo qua chest o dao khac (tinh lai khoang cach thoi diem toi luot)
+                if HumanoidRootPart and (v.Position - HumanoidRootPart.Position).Magnitude > maxJump then
+                    continue
                 end
 
                 local result = _teleChest(v, stopCondition)
@@ -744,8 +753,6 @@ FarmBeli = function(stopCondition)
                     DBG.log("GHOST skip -> blacklist | " .. DBG.fullPath(v))
                 elseif result == "died" or result == "stopped" then
                     return
-                elseif result == "timeout" then
-                    DBG.log("Timeout skip | " .. DBG.fullPath(v))
                 end
             end
             if i % 100 == 0 then task.wait(0.1) end
