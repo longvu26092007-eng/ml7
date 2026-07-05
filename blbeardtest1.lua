@@ -571,10 +571,13 @@ local function _markCollected(pos)
     if pos then _collectedAt[#_collectedAt + 1] = {pos = pos, t = tick()} end
 end
 
--- Lay island folder (workspace.Map.XYZ) ma player dang dung tren do.
--- Cach: di nguoc ancestor cua HumanoidRootPart len den con truc tiep cua workspace.Map.
--- Chinh xac 100%, khong can pivot distance hay hardcode ten dao.
-local function _getPlayerIslandFolder()
+-- Cache island hien tai. Chi cap nhat khi character thuc su dung trong workspace.Map.XYZ.
+-- Khi nil (spawn/teleport/respawn) -> BLOCK het chest, khong fallback true.
+local _cachedIslandFolder = nil
+
+-- Di nguoc ancestor cua HumanoidRootPart de tim con truc tiep cua workspace.Map.
+-- Tra ve folder neu tim duoc, nil neu player dang o ngoai Map (spawn, void, etc.)
+local function _detectIslandFolder()
     local hrp = HumanoidRootPart
     if not hrp then return nil end
     local map = workspace:FindFirstChild("Map")
@@ -582,21 +585,33 @@ local function _getPlayerIslandFolder()
     local obj = hrp
     while obj and obj.Parent ~= map do
         obj = obj.Parent
+        -- Tranh vong lap vo han neu cay ancestor khong co workspace.Map
+        if obj == workspace or obj == nil then return nil end
     end
-    -- obj.Parent == map -> obj la island folder; neu obj == map hoac nil thi player khong trong dao nao
-    if obj and obj ~= map and obj ~= workspace then
+    if obj and obj.Parent == map then
         return obj
     end
     return nil
 end
 
+-- Cap nhat cache moi khi goi: neu detect duoc island moi thi luu lai.
+-- Neu khong detect duoc (spawn/void) thi giu nguyen cache cu.
+-- Cache bi xoa hoan toan khi hop server (script reset).
+local function _getIslandFolder()
+    local detected = _detectIslandFolder()
+    if detected then
+        _cachedIslandFolder = detected
+    end
+    return _cachedIslandFolder
+end
+
 -- Kiem tra chest co thuoc dung dao player dang dung khong.
 -- Chest o dao khac: CanTouch=true nhung server khong nhan touch -> ghost 100%.
--- Neu khong xac dinh duoc dao (player dang bay/dich chuyen) -> cho qua.
+-- Neu chua xac dinh duoc dao lan nao (cache nil) -> BLOCK het, khong cho qua.
 local function _chestOnCurrentIsland(chest)
     if not chest or not chest.Parent then return false end
-    local islandFolder = _getPlayerIslandFolder()
-    if not islandFolder then return true end
+    local islandFolder = _getIslandFolder()
+    if not islandFolder then return false end  -- chua biet dang o dao nao -> block
     return chest:IsDescendantOf(islandFolder)
 end
 
@@ -831,26 +846,31 @@ FarmBeli = function(stopCondition)
             chests = _getChestList()
         end
 
-        -- CHONG KICK XUYEN DAO: chest gan nhat xa hon maxJump = khac dao
-        -- (list sort gan->xa, chests[1] la gan nhat)
+        -- CHEST O DAO KHAC: dung requestEntrance de teleport sang dao do
+        -- (list sort gan->xa; chests[1] la chest gan nhat; neu no van xa = dang o dao khac)
         if chests[1] and chests[1].dist > maxJump then
             if not farResetTried then
-                DBG.log(string.format("Chest gan nhat xa %.0f studs (>%d) -> reset ve spawn dao", chests[1].dist, maxJump))
-                local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
-                if h and h.Health > 0 then
-                    h:ChangeState(Enum.HumanoidStateType.Dead)
-                    task.wait(2.5)
-                    repeat task.wait(0.2) until Character and Character:FindFirstChild("HumanoidRootPart")
+                local targetPos = chests[1].obj.Position
+                DBG.log(string.format("Chest gan nhat xa %.0f studs (>%d) -> requestEntrance sang dao moi", chests[1].dist, maxJump))
+                -- requestEntrance voi position tren dao do -> game spawn character tai dao tuong ung
+                local ok, err = pcall(function()
+                    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("requestEntrance", targetPos)
+                end)
+                if not ok then
+                    DBG.log("requestEntrance that bai: " .. tostring(err))
                 end
                 farResetTried = true
-                -- cho char settle roi quay lai dau while, do lai khoang cach
-                task.wait(0.5)
+                -- doi character spawn xong (requestEntrance thay the character, mat ~3-5s)
+                task.wait(5)
+                repeat task.wait(0.3) until Character and Character:FindFirstChild("HumanoidRootPart")
+                task.wait(1)  -- cho island load
+                _cachedIslandFolder = nil  -- xoa cache dao cu de phat hien dao moi
                 continue
             else
-                -- reset roi van xa -> server nay khong co chest gan, hop
-                DBG.log("Reset roi chest van xa -> Hop")
+                -- da thu requestEntrance roi van xa (island load cham / server loi) -> hop
+                DBG.log("requestEntrance roi chest van xa -> Hop")
                 if not (stopCondition and stopCondition()) and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
-                    HopServer("Chest too far after reset")
+                    HopServer("Chest too far after entrance")
                 end
                 return
             end
