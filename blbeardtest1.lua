@@ -28,7 +28,7 @@ do
     def("Max Jump Distance", 5000)              -- teleport toi da toi chest DA LOAD (studs). Chest o dao khac bi StreamingEnabled do vao ReplicatedStorage.Unloaded -> da loc rieng, khong dung so nay de voi toi
     def("Far Jump Warn", 2500)                  -- nhay xa hon nay -> ghi vao kick_history.log (nghi te chet/kick do teleport xa)
     def("Chest Interval", 0.1)                  -- nghi giua 2 rương (giay) - gian cach teleport, chong kick
-    def("Collect Verify Time", 0.6)             -- toi da cho 1 rương truoc khi bo (giay)
+    def("Collect Verify Time", 0.6)             -- sau bao nhieu giay khong collect thi coi la ghost (giay)
     def("Debug", true)                          -- ghi log debug ra file (ChestBP_Debug/)
     def("Debug Position", true)                 -- log chi tiet vi tri player moi lan nhay/poll
     def("Ghost Model Radius", 14)               -- ban kinh quet model xuat hien quanh chest (chi debug)
@@ -755,19 +755,34 @@ local function _teleChest(chest, stopCondition)
         return "skip"
     end
 
-    local deadline = tick() + verifyTime
+    -- Spam cho den khi collect, giong SG goc: repeat until not v.CanTouch.
+    -- Khong co timeout -- neu chest that thi se collect duoc; neu ghost thi CanTouch tu tat sau delay.
+    -- SG goc: task.delay(2, function() v.CanTouch = false end) ngay khi bat dau spam.
+    task.delay(verifyTime, function()
+        if chest and chest.Parent and chest.CanTouch then
+            -- qua verifyTime van chua collect -> nghi ghost -> tat CanTouch de thoat loop + blacklist
+            pcall(function() chest.CanTouch = false end)
+        end
+    end)
     local result = "ghost"
     local lastLog = 0
     repeat
-        task.wait()  -- moi frame (giong SG) - KHONG dat interval o day
+        task.wait()  -- moi frame (giong SG)
         if not Character or not humanoid or humanoid.Health <= 0 then result = "died" break end
         if stopCondition and stopCondition() then result = "stopped" break end
 
         -- da an? chest bien mat / CanTouch tat / loot van ra tai cho
-        if not (chest and chest.Parent) or not chest.CanTouch then result = "collected" break end
+        if not (chest and chest.Parent) or not chest.CanTouch then
+            -- phan biet: collect that (chest mat) vs ghost (CanTouch bi tat boi delay tren)
+            if not (chest and chest.Parent) or _lootNearChest(chest) then
+                result = "collected"
+            end
+            -- neu chest van con nhung CanTouch = false do delay -> result giu nguyen "ghost"
+            break
+        end
         if _lootNearChest(chest) then result = "collected" break end
 
-        -- player khac vua den chinh chest nay trong luc ta dang spam -> ho se lay, skip de khong waste thoi gian
+        -- player khac vua den -> bo qua, ho se lay
         if _otherPlayerOnChest(chest) then result = "skip" break end
 
         -- SPAM moi frame: teleport CHINH XAC len chest + ep jump (nhu SG)
@@ -793,7 +808,7 @@ local function _teleChest(chest, stopCondition)
                 _v3(root.Position), (root.Position - chest.Position).Magnitude,
                 tostring(humanoid:GetState())))
         end
-    until tick() >= deadline
+    until false
 
     if logPos then
         DBG.log(string.format("RESULT=%s | %s | playerPos(%s)",
