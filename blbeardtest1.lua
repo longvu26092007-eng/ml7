@@ -846,6 +846,17 @@ FarmBeli = function(stopCondition)
     local humanoid = Character:FindFirstChildWhichIsA("Humanoid")
     if not humanoid or humanoid.Health <= 0 then return end
 
+    -- Lan dau chay (sau spawn/reconnect): doi detect duoc island hien tai truoc khi bat dau
+    -- De tranh _getChestList() rong ngay lap tuc -> chuyen dao sai
+    if _cachedIslandFolder == nil then
+        local initWait = tick() + 6
+        repeat
+            task.wait(0.3)
+            local detected = _detectIslandFolder()
+            if detected then _cachedIslandFolder = detected break end
+        until tick() >= initWait
+    end
+
     if all >= maxChests then
         print("Chest | Da du " .. maxChests .. " -> Hop")
         HopServer("Max Chests")
@@ -884,6 +895,10 @@ FarmBeli = function(stopCondition)
                     -- doi island folder detect duoc (player da dung trong workspace.Map.XYZ)
                     local islandWait = tick() + 5
                     repeat task.wait(0.2) until _detectIslandFolder() ~= nil or tick() >= islandWait
+                    -- doi them de chest stream vao CollectionService (island detect duoc chua co nghia la chest da tag)
+                    local chestWait = tick() + 4
+                    repeat task.wait(0.3) until #_getChestList() > 0 or tick() >= chestWait
+                    farResetTried = false  -- reset de lan tiep van co the thu chuyen dao neu can
                     continue
                 else
                     -- reset roi van khong co chest dao moi -> server nay het chest, hop
