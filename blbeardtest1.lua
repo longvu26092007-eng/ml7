@@ -671,6 +671,23 @@ local function _getChestList()
     return list
 end
 
+-- Lay chest gan nhat o dao KHAC (khong qua island filter).
+-- Dung de biet can chuyen dao nao khi het chest o dao hien tai.
+local function _getNearestOtherIslandChest()
+    local pos = HumanoidRootPart and HumanoidRootPart.Position
+    if not pos then return nil end
+    local best, bestDist = nil, math.huge
+    for _, v in next, CollectionService:GetTagged("_ChestTagged") do
+        if v and v.Parent and v:IsA("BasePart") and v.CanTouch
+            and v.Name:find("Chest") and v:IsDescendantOf(workspace)
+            and not _ghostSeen[v] and not _chestOnCurrentIsland(v) then
+            local d = (v.Position - pos).Magnitude
+            if d < bestDist then best, bestDist = v, d end
+        end
+    end
+    return best
+end
+
 local function _waitForChest(timeout)
     local deadline = tick() + (timeout or _cfg("Chest Wait Timeout", 12))
     repeat
@@ -820,7 +837,6 @@ FarmBeli = function(stopCondition)
         return
     end
 
-    local maxJump = _cfg("Max Jump Distance", 3000)
     local farResetTried = false  -- da thu reset vi chest qua xa chua
 
     -- vong lap chinh (thay dequy -> tranh stack overflow)
@@ -832,9 +848,38 @@ FarmBeli = function(stopCondition)
             return
         end
 
-        -- detect chest, doi neu chua co
+        -- detect chest dao hien tai
         local chests = _getChestList()
         if #chests == 0 then
+            -- Khong co chest dao hien tai -> tim chest dao khac de chuyen
+            local other = _getNearestOtherIslandChest()
+            if other then
+                if not farResetTried then
+                    DBG.log(string.format("Het chest dao hien tai -> chuyen sang dao khac: %s", DBG.fullPath(other)))
+                    local hrp = HumanoidRootPart
+                    local h = Character and Character:FindFirstChildWhichIsA("Humanoid")
+                    if hrp and h and h.Health > 0 then
+                        hrp.CFrame = CFrame.new(other.Position + Vector3.new(0, 5, 0))
+                        task.wait(0.1)
+                        h:ChangeState(Enum.HumanoidStateType.Dead)
+                    end
+                    farResetTried = true
+                    repeat task.wait(0.1) until Character and Character:FindFirstChild("HumanoidRootPart")
+                    _cachedIslandFolder = nil
+                    -- doi island folder detect duoc (player da dung trong workspace.Map.XYZ)
+                    local islandWait = tick() + 5
+                    repeat task.wait(0.2) until _detectIslandFolder() ~= nil or tick() >= islandWait
+                    continue
+                else
+                    -- reset roi van khong co chest dao moi -> server nay het chest, hop
+                    DBG.log("Chuyen dao roi van khong co chest -> Hop")
+                    if not (stopCondition and stopCondition()) and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
+                        HopServer("No chest after island switch")
+                    end
+                    return
+                end
+            end
+            -- Khong co chest o bat ki dao nao -> doi hoac hop
             print("Chest | Khong co chest, doi toi da " .. waitTimeout .. "s...")
             if not _waitForChest(waitTimeout) then
                 if not (stopCondition and stopCondition()) and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
@@ -845,37 +890,7 @@ FarmBeli = function(stopCondition)
             end
             chests = _getChestList()
         end
-
-        -- CHEST O DAO KHAC: dung requestEntrance de teleport sang dao do
-        -- (list sort gan->xa; chests[1] la chest gan nhat; neu no van xa = dang o dao khac)
-        if chests[1] and chests[1].dist > maxJump then
-            if not farResetTried then
-                local targetPos = chests[1].obj.Position
-                DBG.log(string.format("Chest gan nhat xa %.0f studs (>%d) -> requestEntrance sang dao moi", chests[1].dist, maxJump))
-                -- requestEntrance voi position tren dao do -> game spawn character tai dao tuong ung
-                local ok, err = pcall(function()
-                    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("requestEntrance", targetPos)
-                end)
-                if not ok then
-                    DBG.log("requestEntrance that bai: " .. tostring(err))
-                end
-                farResetTried = true
-                -- doi character spawn xong (requestEntrance thay the character, mat ~3-5s)
-                task.wait(5)
-                repeat task.wait(0.3) until Character and Character:FindFirstChild("HumanoidRootPart")
-                task.wait(1)  -- cho island load
-                _cachedIslandFolder = nil  -- xoa cache dao cu de phat hien dao moi
-                continue
-            else
-                -- da thu requestEntrance roi van xa (island load cham / server loi) -> hop
-                DBG.log("requestEntrance roi chest van xa -> Hop")
-                if not (stopCondition and stopCondition()) and not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
-                    HopServer("Chest too far after entrance")
-                end
-                return
-            end
-        end
-        farResetTried = false  -- da co chest gan -> reset lai co che
+        farResetTried = false  -- co chest dao hien tai -> reset lai co che
 
         -- collect het batch hien tai
         for i, entry in next, chests do
@@ -886,11 +901,6 @@ FarmBeli = function(stopCondition)
                     print("Chest | Du " .. maxChests .. " -> Hop")
                     HopServer("Max Chests")
                     return
-                end
-
-                -- bo qua chest o dao khac (tinh lai khoang cach thoi diem toi luot)
-                if HumanoidRootPart and (v.Position - HumanoidRootPart.Position).Magnitude > maxJump then
-                    continue
                 end
 
                 local result = _teleChest(v, stopCondition)
@@ -930,8 +940,7 @@ FarmBeli = function(stopCondition)
                     if h and h.Health > 0 then
                         DBG.log(string.format("Reset anti-kick (collected=%d, teleports=%d)...", resetCounter, tpCounter))
                         h:ChangeState(Enum.HumanoidStateType.Dead)
-                        task.wait(1.5)
-                        repeat task.wait(0.2) until Character and Character:FindFirstChild("HumanoidRootPart")
+                        repeat task.wait(0.1) until Character and Character:FindFirstChild("HumanoidRootPart")
                     end
                     resetCounter = 0
                     tpCounter = 0
@@ -940,16 +949,8 @@ FarmBeli = function(stopCondition)
             if i % 100 == 0 then task.wait(0.1) end
         end
 
-        -- het batch: con chest moi thi lap tiep, khong thi hop
+        -- het batch: quay lai dau while de check lai (se xu ly chuyen dao o tren neu can)
         if stopCondition and stopCondition() then return end
-        if #_getChestList() == 0 then
-            if not CheckTool("Fist of Darkness") and not CheckMonster("Darkbeard") then
-                print("Chest | Het chest -> Hop")
-                HopServer("No chest left")
-            end
-            return
-        end
-        -- else: quay lai dau while, collect batch moi
     end
 end
 
