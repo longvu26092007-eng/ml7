@@ -470,7 +470,8 @@ do
         end
     end
 
-    -- Set HP: tp lên đầu địch, ép Health = 0 (trial Human/Ghoul)
+    -- Set HP: Y CHANG trial Human/Ghoul (KaitunV4 1778-1793), CHỈ BỎ dòng tween bay lên đầu quái.
+    -- SimulationRadius = math.huge chiếm quyền vật lý mọi quái → ĐỨNG IM vẫn ép Health = 0 được.
     local function setHpTick()
         for _, t in ipairs(Targets.list()) do
             if not KA.enabled or KA.mode ~= "Set HP" then break end
@@ -479,7 +480,7 @@ do
             repeat
                 task.wait()
                 pcall(Movement.equip); pcall(Movement.haki)
-                pcall(function() Movement.topos(hrp.CFrame * CFrame.new(0, 30, 0)) end)
+                -- (đã bỏ) Movement.topos(hrp.CFrame * CFrame.new(0, 30, 0)) — không bay lên đầu quái nữa
                 pcall(function() sethiddenproperty(LP, "SimulationRadius", math.huge) end)
                 pcall(function() hrp.CanCollide = false; hum.Health = 0 end)
             until (not v.Parent) or (not v:FindFirstChild("Humanoid")) or hum.Health <= 0
