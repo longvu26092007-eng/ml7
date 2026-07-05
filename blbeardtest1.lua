@@ -479,8 +479,8 @@ do
             local t0 = tick()
             repeat
                 task.wait()
-                pcall(Movement.equip); pcall(Movement.haki)
-                -- (đã bỏ) Movement.topos(hrp.CFrame * CFrame.new(0, 30, 0)) — không bay lên đầu quái nữa
+                -- KHÔNG equip, KHÔNG haki, KHÔNG bay, KHÔNG spam skill.
+                -- SimulationRadius = math.huge chiếm quyền vật lý → quái tự chết khi set Health = 0.
                 pcall(function() sethiddenproperty(LP, "SimulationRadius", math.huge) end)
                 pcall(function() hrp.CanCollide = false; hum.Health = 0 end)
             until (not v.Parent) or (not v:FindFirstChild("Humanoid")) or hum.Health <= 0
