@@ -25,7 +25,8 @@ do
     def("Collected Cooldown Radius", 12)        -- ban kinh coi la "cung mot chest" khi check cooldown (studs)
     def("Chest Wait Timeout", 12)               -- doi chest spawn bao nhieu giay truoc khi hop
     def("Hop Max Players", 5)                   -- chi hop vao server it hon N nguoi
-    def("Max Jump Distance", 5000)              -- teleport toi da toi chest DA LOAD (studs). Chest o dao khac bi StreamingEnabled do vao ReplicatedStorage.Unloaded -> da loc rieng, khong dung so nay de voi toi
+    def("Max Jump Distance", 5000)              -- teleport toi da toi chest DA LOAD (studs). Chest xa hon bi loai (tranh te vao vung chua stream -> chet)
+    def("Same Island Only", false)              -- true = chi nhat chest cung dao dang dung (loc chat, de bi ket). false (giong BLb) = nhat moi chest _ChestTagged trong tam Max Jump Distance
     def("Far Jump Warn", 2500)                  -- nhay xa hon nay -> ghi vao kick_history.log (nghi te chet/kick do teleport xa)
     def("Chest Interval", 0.1)                  -- nghi giua 2 rương (giay) - gian cach teleport, chong kick
     def("Collect Verify Time", 2)               -- sau bao nhieu giay khong collect thi coi la ghost (giay). BLb dung 2s: Space can thoi gian de server nhan touch, 0.6s qua ngan -> chest that bi tinh ghost
@@ -541,6 +542,11 @@ local function _cfg(key, default)
     local v = getgenv().Settings and getgenv().Settings[key]
     return (v ~= nil) and tonumber(v) or default
 end
+local function _cfgBool(key, default)
+    local v = getgenv().Settings and getgenv().Settings[key]
+    if v == nil then return default end
+    return v == true or v == "true" or v == 1
+end
 
 -- blacklist rương ghost da gap: khong bao gio cham lai (chong kick)
 local _ghostSeen = {}
@@ -632,12 +638,24 @@ local function _otherPlayerOnChest(chest)
 end
 
 local function _isValidChest(v)
-    return v and v.Parent and v:IsA("BasePart") and v.CanTouch and v.Name:find("Chest")
+    if not (v and v.Parent and v:IsA("BasePart") and v.CanTouch and v.Name:find("Chest")
         and v:IsDescendantOf(workspace)
-        and _chestOnCurrentIsland(v)    -- chi nhat chest cua dao dang dung, chest dao khac du CanTouch=true van ghost
         and not _ghostSeen[v]
         and not _onCooldown(v.Position)
-        and not _otherPlayerOnChest(v)
+        and not _otherPlayerOnChest(v)) then
+        return false
+    end
+    -- Loc theo khoang cach (giong BLb: chi nhat chest da load gan minh, tranh te vao vung chua stream)
+    local pos = HumanoidRootPart and HumanoidRootPart.Position
+    if pos and (v.Position - pos).Magnitude > _cfg("Max Jump Distance", 5000) then
+        return false
+    end
+    -- Loc same-island CHI khi bat (mac dinh tat). Truoc day luon bat -> nhieu chest that bi loai
+    -- -> het chest -> nhanh chuyen dao/hop khi moi nhat duoc 1 rương.
+    if _cfgBool("Same Island Only", false) and not _chestOnCurrentIsland(v) then
+        return false
+    end
+    return true
 end
 
 -- Dau hieu GHOST: sau khi cham, 1 Model xuat hien ngay canh chest.
@@ -873,8 +891,10 @@ FarmBeli = function(stopCondition)
         -- detect chest dao hien tai
         local chests = _getChestList()
         if #chests == 0 then
-            -- Khong co chest dao hien tai -> tim chest dao khac de chuyen
-            local other = _getNearestOtherIslandChest()
+            -- Khong co chest dao hien tai -> tim chest dao khac de chuyen.
+            -- CHI lam khi bat Same Island Only. Khi tat (mac dinh, giong BLb) thi chest dao khac
+            -- trong tam Max Jump Distance da duoc _getChestList nhat truc tiep -> KHONG chet+chuyen dao.
+            local other = _cfgBool("Same Island Only", false) and _getNearestOtherIslandChest() or nil
             if other then
                 if not farResetTried then
                     DBG.log(string.format("Het chest dao hien tai -> chuyen sang dao khac: %s", DBG.fullPath(other)))
