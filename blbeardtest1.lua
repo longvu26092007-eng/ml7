@@ -52,7 +52,6 @@ GuiService          = game:GetService("GuiService")
 TeleportService     = game:GetService("TeleportService")
 
 cloneref = cloneref or function(x) return x end
-newcclosure = newcclosure or function(f) return f end
 
 LocalPlayer = Players.LocalPlayer
 COMMF_ = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
@@ -136,14 +135,10 @@ end
 ChooseTeam()
 task.wait(2)
 
-repeat
-    task.wait(2)
-until (
-    Character
+repeat task.wait(2) until Character
     and Character:FindFirstChild("HumanoidRootPart")
     and Character:FindFirstChildWhichIsA("Humanoid")
     and Character:IsDescendantOf(workspace.Characters)
-)
 
 -- ============================================================
 -- HELPERS
@@ -248,7 +243,7 @@ end)
 -- ============================================================
 -- HOP SERVER V17.3
 -- ============================================================
-function IfTableHaveIndex(j) for _ in pairs(j or {}) do return true end return false end
+function IfTableHaveIndex(j) for _ in j do return true end end
 
 local LastServersDataPulled, CachedServers
 function GetServers()
@@ -280,7 +275,7 @@ HopServer = function(Reason, MaxPlayers, ForcedRegion)
     end
 
     local ArrayServers = {}
-    for id, v in pairs(Servers) do
+    for id, v in Servers do
         if id ~= JobId then
             table.insert(ArrayServers, {JobId = id, Players = v.Count, LastUpdate = v.__LastUpdate, Region = v.Region})
         end
@@ -576,11 +571,58 @@ local function _markCollected(pos)
     if pos then _collectedAt[#_collectedAt + 1] = {pos = pos, t = tick()} end
 end
 
+-- Lay island folder (workspace.Map.XYZ) ma player dang dung tren do.
+-- Cach: di nguoc ancestor cua HumanoidRootPart len den con truc tiep cua workspace.Map.
+-- Chinh xac 100%, khong can pivot distance hay hardcode ten dao.
+local function _getPlayerIslandFolder()
+    local hrp = HumanoidRootPart
+    if not hrp then return nil end
+    local map = workspace:FindFirstChild("Map")
+    if not map then return nil end
+    local obj = hrp
+    while obj and obj.Parent ~= map do
+        obj = obj.Parent
+    end
+    -- obj.Parent == map -> obj la island folder; neu obj == map hoac nil thi player khong trong dao nao
+    if obj and obj ~= map and obj ~= workspace then
+        return obj
+    end
+    return nil
+end
+
+-- Kiem tra chest co thuoc dung dao player dang dung khong.
+-- Chest o dao khac: CanTouch=true nhung server khong nhan touch -> ghost 100%.
+-- Neu khong xac dinh duoc dao (player dang bay/dich chuyen) -> cho qua.
+local function _chestOnCurrentIsland(chest)
+    if not chest or not chest.Parent then return false end
+    local islandFolder = _getPlayerIslandFolder()
+    if not islandFolder then return true end
+    return chest:IsDescendantOf(islandFolder)
+end
+
+-- Kiem tra co player khac (khong phai LocalPlayer) dang dung tren chest khong.
+-- Neu co -> chest dang bi nguoi khac giu, skip ngay, khong spam teleport, khong tinh ghost.
+local function _otherPlayerOnChest(chest)
+    if not chest or not chest.Parent then return false end
+    local pos = chest.Position
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and (hrp.Position - pos).Magnitude <= 3 then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function _isValidChest(v)
     return v and v.Parent and v:IsA("BasePart") and v.CanTouch and v.Name:find("Chest")
-        and v:IsDescendantOf(workspace)  -- QUAN TRONG: chest o dao khac bi StreamingEnabled do vao ReplicatedStorage.Unloaded. Teleport toi do = roi xuong hu khong -> chet -> respawn -> ghost hang loat -> kick. Chi nhat chest DA STREAM trong workspace.
-        and not _ghostSeen[v]         -- da xac dinh ghost -> bo qua, khong cham lai
-        and not _onCooldown(v.Position) -- vua an o cho nay -> cho respawn, tranh ghost gia
+        and v:IsDescendantOf(workspace)
+        and _chestOnCurrentIsland(v)    -- chi nhat chest cua dao dang dung, chest dao khac du CanTouch=true van ghost
+        and not _ghostSeen[v]
+        and not _onCooldown(v.Position)
+        and not _otherPlayerOnChest(v)
 end
 
 -- Dau hieu GHOST: sau khi cham, 1 Model xuat hien ngay canh chest.
@@ -675,6 +717,12 @@ local function _teleChest(chest, stopCondition)
             jumpDist, farWarn, DBG.fullPath(chest)))
     end
 
+    -- Check ngay truoc khi bat dau spam: neu player khac dang dung tren chest thi skip luon
+    if _otherPlayerOnChest(chest) then
+        DBG.log("SKIP (player khac tren chest truoc khi nhay) | " .. DBG.fullPath(chest))
+        return "skip"
+    end
+
     local deadline = tick() + verifyTime
     local result = "ghost"
     local lastLog = 0
@@ -686,6 +734,9 @@ local function _teleChest(chest, stopCondition)
         -- da an? chest bien mat / CanTouch tat / loot van ra tai cho
         if not (chest and chest.Parent) or not chest.CanTouch then result = "collected" break end
         if _lootNearChest(chest) then result = "collected" break end
+
+        -- player khac vua den chinh chest nay trong luc ta dang spam -> ho se lay, skip de khong waste thoi gian
+        if _otherPlayerOnChest(chest) then result = "skip" break end
 
         -- SPAM moi frame: teleport CHINH XAC len chest + ep jump (nhu SG)
         pcall(function()
@@ -824,7 +875,7 @@ FarmBeli = function(stopCondition)
 
                 local result = _teleChest(v, stopCondition)
 
-                -- dem moi lan teleport (bat ke ket qua) cho anti-kick
+                -- dem moi lan teleport thuc su (khong tinh skip do player khac dang giu chest)
                 if result == "collected" or result == "ghost" then
                     tpCounter += 1
                 end
@@ -832,19 +883,21 @@ FarmBeli = function(stopCondition)
                 if result == "collected" then
                     all += 1
                     resetCounter += 1
-                    ghostStreak = 0  -- an duoc -> reset chuoi ghost
-                    _markCollected(v.Position)  -- ghi cho vua an -> cooldown, tranh nhat lai luc dang hoi loot
+                    ghostStreak = 0
+                    _markCollected(v.Position)
                     DBG.log(string.format("OK collected | Total: %d/%d | %s", all, maxChests, DBG.fullPath(v)))
                 elseif result == "ghost" then
                     ghostStreak += 1
                     DBG.log(string.format("GHOST skip #%d -> blacklist | %s", ghostStreak, DBG.fullPath(v)))
-                    -- ghost lien tiep qua nhieu = server loi / dang bi treo -> hop ngay (chong kick)
                     if ghostStreak >= maxGhost and not (stopCondition and stopCondition()) then
                         DBG.log(string.format("Ghost lien tiep %d lan -> Hop (server loi)", ghostStreak))
                         ghostStreak = 0
                         HopServer("Too many consecutive ghosts")
                         return
                     end
+                elseif result == "skip" then
+                    -- skip = player khac dang giu chest hoac chest khong hop le -> khong tinh ghost, khong tinh teleport
+                    DBG.log("SKIP (player khac / khong hop le) | " .. DBG.fullPath(v))
                 elseif result == "died" or result == "stopped" then
                     return
                 end
@@ -954,7 +1007,7 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, mess
     DBG.kick("TeleportInitFailed: " .. tostring(teleportResult) .. " | " .. tostring(message))
     if teleportResult == Enum.TeleportResult.GameFull then
         task.delay(2, function() HopServer("Retry - server full") end)
-    elseif teleportResult == Enum.TeleportResult.IsTeleporting and tostring(message):find("previous teleport") then
+    elseif teleportResult == Enum.TeleportResult.IsTeleporting and message:find("previous teleport") then
         StarterGui:SetCore("SendNotification", {Title = "Death Hop Found", Text = message, Duration = 8})
         task.delay(10, function() game:Shutdown() end)
     else
