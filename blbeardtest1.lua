@@ -458,27 +458,15 @@ end
 local KillAura = {}
 do
     local LP = LocalPlayer
-    local _atkOff, _atkT, _atkEqT = CFrame.new(0, 3, 0), 0, 0
+    local _atkEqT = 0
 
-    -- offset random + equip/haki throttle (từ attackTick)
-    local function chaseNearest()
-        if tick() - _atkT > 0.3 then
-            _atkT = tick()
-            local x, z = math.random(1, 4), math.random(1, 4)
-            if math.random(1, 2) == 1 then x = -x end
-            if math.random(1, 2) == 1 then z = -z end
-            _atkOff = CFrame.new(x, 3, z)
-        end
+    -- KILL AURA ĐÚNG NGHĨA: chỉ equip + haki (throttle), KHÔNG di chuyển/bay.
+    -- FastAttack:BladeHits() sẽ bắn remote đánh mọi địch trong KA.range → đứng im vẫn dính.
+    -- Việc bay lên quái để riêng cho Test Mode (mục [13]).
+    local function prepareAttack()
         if tick() - _atkEqT > 0.4 then
             _atkEqT = tick()
             pcall(Movement.equip); pcall(Movement.haki)
-        end
-        local t = Targets.nearest()
-        if t then
-            local reach = (KA.mode == "Cực Xa") and math.huge or 2000
-            if Movement.getdis(t.hrp.CFrame) <= reach then
-                pcall(function() Movement.topos(t.hrp.CFrame * _atkOff) end)
-            end
         end
     end
 
@@ -510,9 +498,9 @@ do
                     if KA.mode == "Set HP" then
                         setHpTick()
                     else
-                        -- Attack / Cực Xa
+                        -- Attack / Cực Xa: ĐỨNG IM, chỉ bắn remote đánh địch trong tầm
+                        prepareAttack()
                         if FastAttack then pcall(function() FastAttack:BladeHits() end) end
-                        chaseNearest()
                     end
                 else
                     _G.SHOULDSPAMSKILLS = false
