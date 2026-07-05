@@ -495,7 +495,7 @@ do
             while Runtime.alive do
                 task.wait()
                 if KA.enabled then
-                    _G.SHOULDSPAMSKILLS = true
+                    -- KHÔNG tự spam skill kiếm/melee nữa (trước đây bật _G.SHOULDSPAMSKILLS ở đây)
                     if KA.mode == "Set HP" then
                         setHpTick()
                     else
@@ -503,8 +503,6 @@ do
                         prepareAttack()
                         if FastAttack then pcall(function() FastAttack:BladeHits() end) end
                     end
-                else
-                    _G.SHOULDSPAMSKILLS = false
                 end
             end
         end)
